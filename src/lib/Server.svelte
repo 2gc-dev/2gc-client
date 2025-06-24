@@ -112,41 +112,6 @@ async function checkUpdates() {
     console.log('Switch is now', isEnabled ? 'on' : 'off');
   }
 
-  async function handleServiceToggle(service: Service, event: Event) {
-    const target = event.target as HTMLInputElement;
-    currentServer = service;
-    try {
-      await toggleConnection(service.id, service.protocol, target.checked);
-      if (target.checked) {
-        // Даем время на инициализацию процесса
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        // Обновляем информацию о серверах
-        await fetchMainInfo();
-        if (!getServiceStatusById(service.id)) {
-          toast.error($t('tunnel_start_error'));
-          target.checked = false;
-        } else {
-          toast.success($t('tunnel_active'));
-        }
-      } else {
-        toast($t('tunnel_not_active'));
-      }
-    } catch (error) {
-      console.error('Error toggling connection:', error);
-      toast.error($t('tunnel_start_error'));
-      target.checked = false;
-    }
-  }
-
-  function getServiceStatusById(serviceId: string): boolean {
-    const status = mainInfo?.service_status[serviceId];
-    if (!status) {
-      console.warn(`No status found for service ${serviceId}`);
-      return false;
-    }
-    return status.is_connected;
-  }
-
 async function fetchMainInfo(showToast = false) {
   try {
     isRefreshing = true;
@@ -182,30 +147,29 @@ async function connectRdpImmediately() {
 
   const tunnelid = service.id;
   const protocol = service.protocol;
-  const tunnelType = service.tunnel_type;
 
   const domainPart = additional_data.trim();
   const usernameInput = username;
   const passwordInput = password;
 
   try {
-    let result;
-    if (tunnelType === 'cloudflare') {
-      result = await invoke('start_rdp', {
-        tunnelid,
-        username: usernameInput,
-        password: passwordInput,
-        domain: domainPart || "",
-        remember
-      });
-    }
+    const result = await invoke('start_rdp', {
+      tunnelid,
+      username: usernameInput,
+      password: passwordInput,
+      domain: domainPart || "",
+      remember
+    });
 
     console.log('Результат запуска RDP:', result);
 
     if (typeof result !== 'string' || !result.startsWith('RDP session started successfully')) {
       console.error('Ошибка запуска RDP:', result);
+
+
     }
 
+    // Если результат корректный — просто скрываем модалку без уведомления
     if (typeof result === 'string' && result.startsWith('RDP session started successfully')) {
       showModal = false;
     }
@@ -233,15 +197,20 @@ async function selectFile() {
     return mainInfo?.service_status[serviceId];
   }
 
-  function toggleCompany(companyId: string) {
-    if (expandedCompanyIds.includes(companyId)) {
-      expandedCompanyIds = [];
-      localStorage.removeItem('expandedCompanyId');
-    } else {
-      expandedCompanyIds = [companyId];
-      localStorage.setItem('expandedCompanyId', companyId);
-    }
+  function getServiceStatusById(serviceId: string): boolean {
+    const status = mainInfo?.service_status[serviceId];
+    return status?.is_connected ?? false;
   }
+
+function toggleCompany(companyId: string) {
+  if (expandedCompanyIds.includes(companyId)) {
+    expandedCompanyIds = [];
+    localStorage.removeItem('expandedCompanyId');
+  } else {
+    expandedCompanyIds = [companyId];
+    localStorage.setItem('expandedCompanyId', companyId);
+  }
+}
 
 
 async function handleConnectClick(server: Service, companyId: string) {
@@ -253,7 +222,7 @@ async function handleConnectClick(server: Service, companyId: string) {
   };
   serverdata.set(serviceInfo);
 
-  // Загружаем сохранённые данные перед показом модалки
+  // 🟢 Загружаем сохранённые данные перед показом модалки
   try {
     const saved = await invoke<[string, string, string] | null>('get_login_data', { tunnelid: server.id });
     if (saved) {
@@ -277,9 +246,7 @@ async function handleConnectClick(server: Service, companyId: string) {
 
   async function toggleConnection(tunnelid: string, protocol: string, isstarted: boolean) {
     if (protocol === 'rdp') {
-      if (currentServer?.tunnel_type === 'cloudflare') {
-        await invoke('set_connect_rdp', { tunnelid, isstarted });
-      }
+      await invoke('set_connect_rdp', { tunnelid, isstarted });
     } else if (protocol === 'ssh') {
       await invoke('set_connect_ssh', { tunnelid, isstarted });
     }
@@ -292,7 +259,8 @@ async function handleCheckboxChange(event: Event, server: Service, companyid: st
 
   if (isstarted) {
     try {
-      await toggleConnection(server.id, server.protocol, true);
+      await invoke('set_connect_rdp', { tunnelid: server.id, isstarted: true });
+      await fetchMainInfo();
       toast.success($t('tunnel_active')); // Показываем уведомление: туннель активен
     } catch (error) {
       console.error('Ошибка запуска туннеля:', error);
@@ -456,17 +424,12 @@ let activeSessions = [
                             <span class="text-sm">{serv.name}</span>
                           </div>
                           <div class="flex items-center gap-2">
-                            {#if service.tunnel_type}
-                              <span class="tunnel-badge {service.tunnel_type}">
-                                {service.tunnel_type === 'cloudflare' ? 'CF' : '2GC'}
-                              </span>
-                            {/if}
                             <label class="switch">
                               <input
                                 type="checkbox"
                                 id="toggle-{service.id}"
                                 checked={getServiceStatusById(service.id)}
-                                on:change={(e) => handleServiceToggle(service, e)}
+                                on:change={(e) => handleCheckboxChange(e, service, company.id)}
                               />
                               <span class="slider"></span>
                             </label>
@@ -2145,23 +2108,5 @@ td {
   100% {
     transform: rotate(360deg);
   }
-}
-
-.tunnel-badge {
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 0.8em;
-  margin-right: 8px;
-  font-weight: 500;
-}
-
-.tunnel-badge.cloudflare {
-  background-color: #f6821f;
-  color: white;
-}
-
-.service-controls {
-  display: flex;
-  align-items: center;
 }
 </style>

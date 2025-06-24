@@ -107,38 +107,29 @@ async fn get_servers() -> MainInfo {
 
     match user {
         Some(mut user_data) => {
-            if let Err(e) = user_data.get_all_servers().await {
-                eprintln!("Error getting servers: {:?}", e);
-            } else {
-                result.companys = user_data.companys.clone();
-                for service in user_data.services.values() {
-                    let rdp_param = rdp_settings::get_or_create_rdp_params(service.id.as_str()).await;
-                    let ssh_param = ssh_settings::get_or_create_ssh_params(service.id.as_str()).await;
-                    let main_process = process::get_or_create_process(service.id.as_str()).await;
-                    
-                    // Проверяем статус в зависимости от типа туннеля
-                    let is_connected = match service.tunnel_type.as_str() {
-                        "relay" => main_process.cloudflare.is_process_running().await,
-                        _ => main_process.cloudflare.is_process_running().await, // По умолчанию используем cloudflare
-                    };
-                    
-                    let is_rdp = main_process.rdp.is_process_running().await;
-                    let is_ssh = main_process.ssh.is_process_running().await;
+            _ = user_data.get_all_servers().await;
+            result.companys = user_data.companys.clone();
+            for service in user_data.services.values() {
+                let rdp_param = rdp_settings::get_or_create_rdp_params(service.id.as_str()).await;
+                let ssh_param = ssh_settings::get_or_create_ssh_params(service.id.as_str()).await;
+                let main_process = process::get_or_create_process(service.id.as_str()).await;
+                let is_connected = main_process.cloudflare.is_process_running().await;
+                let is_rdp = main_process.rdp.is_process_running().await;
+                let is_ssh = main_process.ssh.is_process_running().await;
 
-                    let service_status = ServiceStatus {
-                        rdp_param,
-                        ssh_param,
-                        is_connected,
-                        is_rdp,
-                        is_ssh,
-                    };
-                    result
-                        .service_status
-                        .insert(service.id.clone(), service_status);
-                }
+                let service_status = ServiceStatus {
+                    rdp_param,
+                    ssh_param,
+                    is_connected,
+                    is_rdp,
+                    is_ssh,
+                };
+                result
+                    .service_status
+                    .insert(service.id.clone(), service_status);
             }
         }
-        None => eprintln!("No user found"),
+        _ => {}
     }
 
     result
@@ -222,6 +213,8 @@ async fn set_connect_ssh(app_handle: AppHandle, tunnelid: String, isstarted: boo
         _ => {}
     }
 }
+
+// ========== Платформозависимые функции и команды ===========
 
 #[tauri::command]
 async fn start_rdp(
@@ -397,6 +390,7 @@ fn save_settings(app_handle: tauri::AppHandle, settings: serde_json::Value) -> R
     std::fs::write(&settings_path, settings.to_string())
         .map_err(|e| format!("Ошибка записи файла настроек: {}", e))
 }
+
 
 fn main() {
     tauri::Builder::default()

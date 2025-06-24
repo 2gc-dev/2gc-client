@@ -40,8 +40,7 @@
       "dmg"
     ],
     "externalBin": [
-      "binaries/cloudflared",
-      "binaries/bore"
+      "binaries/cloudflared"
     ],
     "icon": [
       "icons/16x16.png",

@@ -197,10 +197,6 @@ impl ProcessHandler {
             }
         }
     }
-    pub async fn clear_processes(&self) {
-        let mut processes = self.child_processes.lock().await;
-        processes.clear();
-    }
     pub async fn is_process_running(&self) -> bool {
         let processes = self.child_processes.lock().await;
         !processes.is_empty()

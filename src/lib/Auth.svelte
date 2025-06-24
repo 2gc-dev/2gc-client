@@ -151,10 +151,10 @@ async function authUser(event: Event) {
             {/if}
 
             <div class="auth-links mt-4">
-              <a href="http://localhost:5021/accounts/register/" target="_blank" rel="noopener noreferrer">
+              <a href="https://lk.2gc.ru/accounts/register/" target="_blank" rel="noopener noreferrer">
                 {$t('register_link')}
               </a>
-              <a href="http://localhost:5021/user/forgot-password/no-login/" target="_blank" rel="noopener noreferrer">
+              <a href="https://lk.2gc.ru/user/forgot-password/no-login/" target="_blank" rel="noopener noreferrer">
                 {$t('forgot_password_link')}
               </a>
             </div>

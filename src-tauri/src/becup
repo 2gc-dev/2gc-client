@@ -69,7 +69,7 @@ impl User {
     
         match refresh_token {
             Some(token) => {
-                let url = "http://localhost:5021/api/token/refresh/";
+                let url = "https://lk.2gc.ru/api/token/refresh/";
                 let login_refresh = serde_json::json!({
                     "refresh": token,
                 });
@@ -78,6 +78,12 @@ impl User {
                 let client = Client::new();
                 let response = client
                     .post(url)
+                    .header("User-Agent", "2GC-CloudBridge/1.4.3")
+                    .header("X-Client-Type", "desktop")
+                    .header("X-Client-Version", "1.4.3")
+                    .header("X-Client-OS", std::env::consts::OS)
+                    .header("X-Client-Arch", std::env::consts::ARCH)
+                    .header("Content-Type", "application/json")
                     .json(&login_refresh)
                     .send()
                     .await?;
@@ -117,14 +123,29 @@ impl User {
     }
 
     pub async fn new(email: String, password: String, is_save: bool) -> Result<User, Box<dyn Error + Send + Sync>> {
-        let url = "http://localhost:5021/api/login/";
+        let url = "https://lk.2gc.ru/api/login/";
         let login_data = serde_json::json!({
             "email": email,
             "password": password
         });
     
         let client = Client::new();
-        let response = client.post(url).json(&login_data).send().await?;
+        let response = client
+            .post(url)
+            .header("User-Agent", "2GC-CloudBridge/1.4.3")
+            .header("X-Client-Type", "desktop")
+            .header("X-Client-Version", "1.4.3")
+            .header("X-Client-OS", std::env::consts::OS)
+            .header("X-Client-Arch", std::env::consts::ARCH)
+            .header("Content-Type", "application/json")
+            .json(&login_data)
+            .send()
+            .await?;
+        if !response.status().is_success() {
+            let err_text = response.text().await.unwrap_or_default();
+            println!("[DEBUG][auth] Ошибка авторизации: статус {} тело: {}", response.status(), err_text);
+            return Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, err_text)));
+        }
         let response_tokens: Value = response.json().await?;
         let access_token = response_tokens["access"]
             .as_str()
@@ -167,17 +188,28 @@ impl User {
 
 
     async fn update_token(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        let url = "http://localhost:5021/api/token/refresh/";
+        let url = "https://lk.2gc.ru/api/token/refresh/";
         let login_refresh = serde_json::json!({
             "refresh": self.refresh_token.clone(),
         });
         let client = Client::new();
         let response = client
             .post(url)
+            .header("User-Agent", "2GC-CloudBridge/1.4.3")
+            .header("X-Client-Type", "desktop")
+            .header("X-Client-Version", "1.4.3")
+            .header("X-Client-OS", std::env::consts::OS)
+            .header("X-Client-Arch", std::env::consts::ARCH)
+            .header("Content-Type", "application/json")
             .json(&login_refresh)
             .send()
-            .await.unwrap();
-        let response_tokens: serde_json::Value = response.json().await.unwrap();
+            .await?;
+        if !response.status().is_success() {
+            let err_text = response.text().await.unwrap_or_default();
+            println!("[DEBUG][auth] Ошибка обновления токена: статус {} тело: {}", response.status(), err_text);
+            return Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, err_text)));
+        }
+        let response_tokens: serde_json::Value = response.json().await?;
         println!("response {:?}", response_tokens);
         let access_token = response_tokens["access"].as_str().unwrap().to_string();
         let refresh_token = response_tokens["refresh"].as_str().unwrap().to_string();
@@ -216,7 +248,7 @@ impl User {
             self.update_token().await?;
         }
 
-        let url = "http://localhost:5021/api/user-servers/";
+        let url = "https://lk.2gc.ru/api/user-servers/";
         let client = Client::new();
         let response = client
             .get(url)

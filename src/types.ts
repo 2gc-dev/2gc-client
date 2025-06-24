@@ -1,3 +1,5 @@
+
+
 export interface User {
   refresh_token: string;
   access_token: string;
@@ -46,9 +48,6 @@ export interface Service {
     protocol: string;
     port: number;
     access_url: string;
-    tunnel_type: 'cloudflare' | 'bore';
-    status?: string;
-    tunnel_info?: any;
 }
 
 

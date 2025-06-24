@@ -137,7 +137,7 @@ pub async fn collect_and_send_info_with_token(access_token: &str) -> Result<(), 
     let client = Client::new();
     let client_info = get_client_info();
     let res = client
-        .post("http://localhost:5021/api/system-info/")
+        .post("https://lk.2gc.ru/api/system-info/")
         .bearer_auth(access_token)
         .header("User-Agent", USER_AGENT)
         .header("X-Client-Type", "desktop")
@@ -188,14 +188,6 @@ pub struct Service {
     pub protocol: String,
     pub port: u16,
     pub access_url: String,
-    #[serde(default = "default_tunnel_type")]
-    pub tunnel_type: String,
-    pub status: Option<String>,
-    pub tunnel_info: Option<Value>,
-}
-
-fn default_tunnel_type() -> String {
-    "cloudflare".to_string()
 }
 
 #[derive(Debug, Deserialize)]
@@ -248,7 +240,7 @@ impl User {
 
         match refresh_token {
             Some(token) => {
-                let url = "http://localhost:5021/api/token/refresh/";
+                let url = "https://lk.2gc.ru/api/token/refresh/";
                 let login_refresh = serde_json::json!({
                     "refresh": token,
                 });
@@ -281,11 +273,7 @@ impl User {
                 set_refresh_token_to_keyring(&refresh_token);
 
                 let exp_time = User::validate_token(&access_token).unwrap();
-                let user_name = response_tokens["username"]
-                    .as_str()
-                    .or_else(|| response_tokens["name"].as_str())
-                    .unwrap_or("Unknown")
-                    .to_string();
+                let user_name = response_tokens["name"].as_str().unwrap_or("Unknown").to_string();
 
                 Ok(User {
                     access_token,
@@ -309,7 +297,7 @@ impl User {
         password: String,
         is_save: bool,
     ) -> Result<User, Box<dyn Error + Send + Sync>> {
-        let url = "http://localhost:5021/api/login/";
+        let url = "https://lk.2gc.ru/api/login/";
         let login_data = serde_json::json!({
             "email": email,
             "password": password
@@ -339,11 +327,7 @@ impl User {
             .ok_or("Missing refresh token")?
             .to_string();
 
-        let user_name = response_tokens["username"]
-            .as_str()
-            .or_else(|| response_tokens["name"].as_str())
-            .unwrap_or("Unknown")
-            .to_string();
+        let user_name = response_tokens["name"].as_str().unwrap_or("Unknown").to_string();
 
         let exp_time = User::validate_token(&access_token).unwrap();
 
@@ -365,7 +349,7 @@ impl User {
     }
 
     async fn update_token(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        let url = "http://localhost:5021/api/token/refresh/";
+        let url = "https://lk.2gc.ru/api/token/refresh/";
         let login_refresh = serde_json::json!({
             "refresh": self.refresh_token.clone(),
         });
@@ -413,7 +397,7 @@ impl User {
             self.update_token().await?;
         }
 
-        let url = "http://localhost:5021/api/user/services/";
+        let url = "https://lk.2gc.ru/api/user/services/";
         let client = Client::new();
         let response = client
             .get(url)
@@ -421,18 +405,11 @@ impl User {
             .header("User-Agent", USER_AGENT)
             .send()
             .await?;
-        
-        eprintln!("Response status: {}", response.status());
-        let response_text = response.text().await?;
-        eprintln!("Response body: {}", response_text);
-        
-        let response_body: Vec<ServerResponse> = serde_json::from_str(&response_text)?;
-        eprintln!("Parsed response: {:?}", response_body);
+        let response_body: Vec<ServerResponse> = response.json().await?;
 
         for company in &response_body {
             for server in &company.servers {
                 for service in &server.services {
-                    eprintln!("Processing service: {:?}", service);
                     self.services.insert(service.id.clone(), service.clone());
                 }
             }
