@@ -257,8 +257,10 @@ impl User {
                     .json(&login_refresh)
                     .send()
                     .await?;
+                let response_status = response.status();
                 let response_tokens: Value = response.json().await?;
-                println!("Response: {:?}", response_tokens);
+                println!("[AUTH] Refresh response: {:?}", response_tokens);
+                println!("[AUTH] Refresh status: {}", response_status);
 
                 let access_token = response_tokens["access"]
                     .as_str()
@@ -315,7 +317,10 @@ impl User {
             .json(&login_data)
             .send()
             .await?;
+        let response_status = response.status();
         let response_tokens: Value = response.json().await?;
+        println!("[AUTH] Server response: {:?}", response_tokens);
+        println!("[AUTH] Response status: {}", response_status);
 
         let access_token = response_tokens["access"]
             .as_str()

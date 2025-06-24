@@ -4,8 +4,18 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle};
+use tauri::Manager;
 use std::fs;
+use tungstenite::{connect, Message};
+use url::Url;
+use std::{thread, time::Duration};
+use tauri::Emitter;
+use tauri::EventTarget;
+use tungstenite::client::client;
+use native_tls::TlsConnector;
+use std::net::TcpStream;
+use tungstenite::client::IntoClientRequest;
 
 mod process;
 mod rdp_settings;
@@ -391,6 +401,97 @@ fn save_settings(app_handle: tauri::AppHandle, settings: serde_json::Value) -> R
         .map_err(|e| format!("Ошибка записи файла настроек: {}", e))
 }
 
+#[tauri::command]
+fn start_ws_listener(app_handle: tauri::AppHandle, token: String) {
+    thread::spawn(move || {
+        let mut retry_secs = 1;
+        loop {
+            let url = format!("wss://lk.2gc.ru/ws/notifications/?token={}&x-client-type=desktop", token);
+            println!("[WS] Connecting to: {}", url);
+            println!("[WS] Token (first 20 chars): {}", &token[..token.len().min(20)]);
+            let domain = "lk.2gc.ru";
+            let connector = TlsConnector::new().unwrap();
+            match TcpStream::connect((domain, 443)) {
+                Ok(stream) => {
+                    println!("[WS] TCP connected to {}:443", domain);
+                    match connector.connect(domain, stream) {
+                        Ok(tls_stream) => {
+                            println!("[WS] TLS connected");
+                            // Создаём request с User-Agent
+                            let mut request = url.into_client_request().unwrap();
+                            request.headers_mut().append("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36".parse().unwrap());
+                            
+                            println!("[WS] Request headers:");
+                            for (name, value) in request.headers() {
+                                println!("[WS]   {}: {:?}", name, value);
+                            }
+                            
+                            match client(request, tls_stream) {
+                                Ok((mut socket, response)) => {
+                                    println!("[WS] WebSocket handshake successful!");
+                                    println!("[WS] Response status: {}", response.status());
+                                    println!("[WS] Response headers:");
+                                    for (name, value) in response.headers() {
+                                        println!("[WS]   {}: {:?}", name, value);
+                                    }
+                                    retry_secs = 1;
+                                    loop {
+                                        match socket.read() {
+                                            Ok(msg) => {
+                                                if let Message::Text(txt) = msg {
+                                                    match serde_json::from_str::<serde_json::Value>(&txt) {
+                                                        Ok(val) => {
+                                                            if let Err(e) = app_handle.emit("push-notification", val) {
+                                                                eprintln!("[WS] Emit error: {:?}", e);
+                                                            }
+                                                            println!("[WS] Push: {}", txt);
+                                                        }
+                                                        Err(e) => {
+                                                            eprintln!("[WS] JSON parse error: {:?}", e);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            Err(e) => {
+                                                eprintln!("[WS] Read error: {:?}", e);
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    println!("[WS] Disconnected, will retry");
+                                }
+                                Err(e) => {
+                                    eprintln!("[WS] WebSocket client error: {:?}", e);
+                                    // Попробуем вывести body ответа, если это HTTP ошибка
+                                    if let tungstenite::HandshakeError::Failure(tungstenite::Error::Http(response)) = &e {
+                                        println!("[WS] HTTP Response status: {}", response.status());
+                                        println!("[WS] HTTP Response headers:");
+                                        for (name, value) in response.headers() {
+                                            println!("[WS]   {}: {:?}", name, value);
+                                        }
+                                        if let Some(body) = &response.body() {
+                                            println!("[WS] HTTP Response body (first 500 chars):");
+                                            let body_str = String::from_utf8_lossy(body);
+                                            println!("[WS] {}", &body_str[..body_str.len().min(500)]);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("[WS] TLS connect error: {:?}", e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("[WS] TCP connect error: {:?}", e);
+                }
+            }
+            thread::sleep(Duration::from_secs(retry_secs));
+            retry_secs = (retry_secs * 2).min(60);
+        }
+    });
+}
 
 fn main() {
     tauri::Builder::default()
@@ -417,6 +518,7 @@ fn main() {
             run_updater,
             load_settings,
             save_settings,
+            start_ws_listener,
         ])
         .setup(|app| {
             let app_handle = app.handle().clone();
