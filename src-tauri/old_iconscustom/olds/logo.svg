@@ -1,0 +1,32 @@
+<svg id="_Слой_2" data-name="Слой 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 46.64 15.82" width="150" height="50">
+        <defs>
+            <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#00a5cf;stop-opacity:1">
+                    <animate attributeName="stop-color" values="#00a5cf; #d12bec; #00a5cf" dur="4s" repeatCount="indefinite"></animate>
+                </stop>
+                <stop offset="100%" style="stop-color:#d12bec;stop-opacity:1">
+                    <animate attributeName="stop-color" values="#d12bec; #00a5cf; #d12bec" dur="4s" repeatCount="indefinite"></animate>
+                </stop>
+            </linearGradient>
+            <style>
+                .cls-1 {
+                    fill: none;
+                    stroke: url(#grad1); /* Градиентная обводка */
+                    stroke-width: 1px;
+                }
+
+                .cls-2 {
+                    fill: url(#grad1);
+                }
+            </style>
+        </defs>
+        <g id="_Слой_3" data-name="Слой 3">
+            <g>
+                <!-- "2" с градиентной обводкой -->
+                <path class="cls-1" d="M3.16,3.16V4.74H0V1.6L1.56,0h11.07l1.56,1.6v4.75l-8.81,6.31h8.81v3.16H0v-3.16l11.05-7.89v-1.6H3.16Z"></path>
+                <!-- "GC" с градиентом -->
+                <path class="cls-2" d="M17.56,15.82l-1.56-1.56V1.6l1.56-1.6h11.07l1.56,1.6v3.14h-3.14v-1.58h-7.89v9.49h7.89v-2.73h-3.98v-3.16h7.12v7.5l-1.56,1.56h-11.07Z"></path>
+                <path class="cls-2" d="M34.01,15.82l-1.56-1.56V1.6l1.56-1.6h11.07l1.56,1.6v3.14h-3.14v-1.58h-7.89v9.49h7.89v-1.56h3.14v3.16l-1.56,1.56h-11.07Z"></path>
+            </g>
+        </g>
+    </svg>

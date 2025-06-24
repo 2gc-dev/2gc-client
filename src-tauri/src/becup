@@ -1,0 +1,378 @@
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+
+use std::sync::Arc;
+use reqwest::Client;
+use std::time::{SystemTime, UNIX_EPOCH};
+use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
+use tokio::sync::Mutex;
+use tokio::io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader as AsyncBufReader, BufWriter};
+use lazy_static::lazy_static;
+use std::error::Error;
+use serde_json::Value;
+use serde_json::json;
+
+use crate::storage::{read_value_from_ini,   write_key_value_to_ini, delete_key_from_ini, delete_section_from_ini};
+
+lazy_static! {
+    static ref USER: Arc<Mutex<Option<User>>> = Arc::new(Mutex::new(None));
+}
+
+
+
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ServerResponse {
+    pub name: String,
+    pub servers: Vec<Server>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Server {
+    pub id: String,
+    pub name: String,
+    pub services: Vec<Service>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Service {
+    pub id: String,
+    pub protocol: String,
+    pub port: u16,
+    pub access_url: String,
+}
+
+
+#[derive(Debug, Deserialize)]
+struct Claims {
+    exp: usize, // Unix timestamp for token expiration
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct User {
+    pub refresh_token: String,
+    pub access_token: String,
+    pub exp: u64,
+    pub companys: Vec<ServerResponse>,
+    pub services: HashMap<String, Service>, // Key is the service id, value is the Service struct
+    pub is_save: bool,
+} 
+
+impl User {
+    pub async fn try_remember() -> Result<User, Box<dyn Error + Send + Sync>> {
+        let section = "auth";
+        let key = "refresh_token";
+    
+        // Чтение refresh_token из ini файла
+        let refresh_token = read_value_from_ini(section, key).await;
+        println!("refresh_token {:?}", refresh_token);
+    
+        match refresh_token {
+            Some(token) => {
+                let url = "http://localhost:5021/api/token/refresh/";
+                let login_refresh = serde_json::json!({
+                    "refresh": token,
+                });
+    
+                // Создание HTTP клиента и отправка запроса
+                let client = Client::new();
+                let response = client
+                    .post(url)
+                    .json(&login_refresh)
+                    .send()
+                    .await?;
+    
+                // Обработка ответа
+                let response_tokens: Value = response.json().await?;
+                println!("Response: {:?}", response_tokens);
+    
+                let access_token = response_tokens["access"].as_str().ok_or("Missing access token")?.to_string();
+                let refresh_token = response_tokens["refresh"].as_str().ok_or("Missing refresh token")?.to_string();
+    
+                // Удаление старого ключа и запись нового в ini файл
+                delete_key_from_ini(section, key).await?;
+                write_key_value_to_ini(section, key, &refresh_token).await?;
+    
+                // Чтение обновленного refresh_token из ini файла
+                let value = read_value_from_ini(section, key).await;
+                println!("Updated value: {:?}", value);
+    
+                // Проверка токена и создание User
+                let exp_time = User::validate_token(&access_token).unwrap();
+    
+                Ok(User {
+                    access_token,
+                    refresh_token,
+                    exp: exp_time,
+                    companys: Vec::new(),
+                    services: HashMap::new(),
+                    is_save: true
+                })
+            }
+            None => Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "User not found"
+            )))
+        }
+    }
+
+    pub async fn new(email: String, password: String, is_save: bool) -> Result<User, Box<dyn Error + Send + Sync>> {
+        let url = "http://localhost:5021/api/login/";
+        let login_data = serde_json::json!({
+            "email": email,
+            "password": password
+        });
+    
+        let client = Client::new();
+        let response = client.post(url).json(&login_data).send().await?;
+        let response_tokens: Value = response.json().await?;
+        let access_token = response_tokens["access"]
+            .as_str()
+            .ok_or("Missing access token")?
+            .to_string();
+
+        let refresh_token = response_tokens["refresh"]
+            .as_str()
+            .ok_or("Missing refresh token")?
+            .to_string();
+    
+        let exp_time = User::validate_token(&access_token).unwrap();
+        
+        let value=refresh_token.clone();
+        
+        if is_save {
+            let section = "auth";
+            let key = "refresh_token";
+            println!("value {:?}", value);
+            _ = delete_section_from_ini(section).await;
+            let result = write_key_value_to_ini(section, key, &value).await;
+            match result {
+                Err(r) => {println!("err {:?}", r)},
+                Ok(_) => { }
+            }
+            let value = read_value_from_ini(section, key).await;
+            println!("value {:?}", value);
+        }
+        
+    
+        Ok(User { 
+            refresh_token,
+            access_token,
+            exp: exp_time,
+            companys: Vec::new(),
+            services: HashMap::new(),
+            is_save: is_save
+        })
+    }
+
+
+    async fn update_token(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let url = "http://localhost:5021/api/token/refresh/";
+        let login_refresh = serde_json::json!({
+            "refresh": self.refresh_token.clone(),
+        });
+        let client = Client::new();
+        let response = client
+            .post(url)
+            .json(&login_refresh)
+            .send()
+            .await.unwrap();
+        let response_tokens: serde_json::Value = response.json().await.unwrap();
+        println!("response {:?}", response_tokens);
+        let access_token = response_tokens["access"].as_str().unwrap().to_string();
+        let refresh_token = response_tokens["refresh"].as_str().unwrap().to_string();
+        if self.is_save{
+            let section = "auth";
+            let key = "refresh_token";
+            let value=refresh_token.clone();
+            delete_key_from_ini(section, key).await.unwrap();
+            write_key_value_to_ini(section, key, &value).await.unwrap();
+            let value = read_value_from_ini(section, key).await;
+            println!("value {:?}", value);
+        }
+        
+
+        let exp_time =  User::validate_token(&access_token).unwrap();
+        self.access_token = access_token;
+        self.refresh_token = refresh_token;
+        self.exp = exp_time;
+
+
+        Ok(())
+    }
+
+    fn validate_token(access_token: &str) -> Result<u64, Box<dyn std::error::Error>> {
+        let key = DecodingKey::from_secret(&[]);
+        let mut validation = Validation::new(Algorithm::HS256);
+        validation.insecure_disable_signature_validation();
+
+        let token_data = decode::<Claims>(access_token, &key, &validation)?;
+        Ok(token_data.claims.exp as u64)
+    }
+
+    pub async fn get_all_servers(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
+        if self.exp < now || self.exp - now <= 60 {
+            self.update_token().await?;
+        }
+
+        let url = "http://localhost:5021/api/user-servers/";
+        let client = Client::new();
+        let response = client
+            .get(url)
+            .header("Authorization", format!("Bearer {}", self.access_token))
+            .send()
+            .await?;
+        let response_body: Vec<ServerResponse> = response.json().await?;
+        for company in  response_body {
+            for server in company.servers {
+                for service in  server.services {
+                    self.services.insert(service.id, service)
+                }
+            }
+        }
+            
+        self.companys = response_body;
+        Ok(())
+    }
+}
+
+pub async fn get_user() -> Option<User> {
+    let user = USER.lock().await;
+    user.clone()
+}
+
+pub async fn create_user(new_user: User) {
+    let mut user = USER.lock().await;
+    *user = Some(new_user);
+}
+
+pub async fn delete_user() {
+    let mut user = USER.lock().await;
+    *user = None;
+}
+
+
+pub async fn get_server_by_tunnel_id(tunnel_id: &str) -> Option<Service> {
+    if let Some(mut usr) = get_user().await {
+        // Получаем все серверы асинхронно, если нужно
+        usr.get_all_servers().await;
+
+        
+        usr.services.get(tunnel_id)
+    } else {
+        None
+    }
+}
+
+//"email": "m.lanies@expressm-test.ru",
+//"password": "7Thbngy6"
+
+
+async fn send_email(api_key: &str, to_email: &str, subject: &str, body: &str) -> Result<(), Box<dyn Error>> {
+    // URL API
+    let url = "https://api.beta.rusender.ru/api/v1/external-mails/send";
+
+    // Создаем JSON данные
+    let data = json!({
+        "mail": {
+            "to": {
+                "email": to_email,
+                "name": ""
+            },
+            "from": {
+                "email": "user@example.com",
+                "name": "2GC"
+            },
+            "subject": "Подтверждение email",
+            "previewTitle": "авторизация",
+            "html": body
+        }
+    });
+
+    // Создаем клиента reqwest
+    let client = Client::new();
+
+    // Выполняем асинхронный POST запрос
+    let response = client.post(url)
+        .header("Content-Type", "application/json")
+        .header("X-Api-Key", api_key)
+        .json(&data)
+        .send()
+        .await?;
+
+    // Проверяем успешность запроса
+    if response.status().is_success() {
+        println!("Email sent successfully!");
+        Ok(())
+    } else {
+        println!("Failed to send email. Status: {:?}", response.status());
+        Err(Box::from("Failed to send email"))
+    }
+}
+
+
+
+{#each companyInfo as info}
+                    <tr class="custom-table">
+                      <td class="custom-line">
+                        <div>
+                            <h5 class="company-name">{info.server.company}</h5>
+                            <div class="server-info">
+                              {info.server.name}<br>
+                              127.0.0.1:{info.rdp_param.localport}
+                              <svg 
+                                class="clickable-svg"
+                                width="22" height="16" viewBox="0 0 22 16" fill="none" xmlns="http://www.w3.org/2000/svg"
+                                on:click={() => handleSvgClick(info.rdp_param.localport)}
+                              >
+                                <g clip-path="url(#clip0_475_289)">
+                                <path d="M17.4166 10H18.3333C18.8195 10 19.2858 9.85952 19.6297 9.60947C19.9735 9.35942 20.1666 9.02028 20.1666 8.66666V2.66666C20.1666 2.31304 19.9735 1.9739 19.6297 1.72385C19.2858 1.4738 18.8195 1.33333 18.3333 1.33333H10.0833C9.59706 1.33333 9.13075 1.4738 8.78693 1.72385C8.44311 1.9739 8.24996 2.31304 8.24996 2.66666V3.33333M11.9166 6H3.66663C2.6541 6 1.83329 6.59695 1.83329 7.33333V13.3333C1.83329 14.0697 2.6541 14.6667 3.66663 14.6667H11.9166C12.9291 14.6667 13.75 14.0697 13.75 13.3333V7.33333C13.75 6.59695 12.9291 6 11.9166 6Z" stroke="#F3F3F3" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+                                </g>
+                                <defs>
+                                <clipPath id="clip0_475_289">
+                                <rect width="22" height="16" fill="white" transform="matrix(-1 0 0 1 22 0)"/>
+                                </clipPath>
+                                </defs>
+                                </svg>
+                            </div>
+                        </div>
+                    </td>
+                    
+                    <td>
+                      <label class="switch">
+                          <input
+                              type="checkbox"
+                              id="flexSwitchCheckDefault-{info.server.tunnel_id}"
+                              checked={info.is_connected}
+                              on:change={(e) => handleCheckboxChange(e, info.server.tunnel_id)}
+                          >
+                          <span class="slider">
+                              <span class="on">ON</span>
+                              <span class="off">OFF</span>
+                          </span>
+                      </label>
+                  </td>
+                  
+                  <td>
+                    {#if info.is_connected}
+                    <button type="submit" class="custom-button2" on:click={() => handleServerLogin(info)}>
+                        <!--on:click={() => handleServerLogin(info)}-->
+                        <img class="custom-button2" src="/png/1-03.png" alt="Button Image" width="45" height="45"/>
+                        
+                    </button>
+                    
+                    
+                    {:else}
+                    <button type="submit" class="custom-button2" on:click={() => handleServerLogin(info)}>
+                        <!--on:click={() => handleServerLogin(info)}-->
+                        <img src="/png/1-02.png" alt="Button Image" width="45" height="45"/>
+                        
+                    </button>
+                    {/if}
+                    
+                  </td>
+                 
+                  
+            
+            {/each}

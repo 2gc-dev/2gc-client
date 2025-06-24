@@ -1,0 +1,7 @@
+.bg-orange-200 {
+    background-color: #ecf3ff;  /* или любой другой желаемый цвет */
+}
+
+.custom-modal-bg {
+    .background-color:default(#ecf3ff);  /* или любой другой желаемый цвет */
+}

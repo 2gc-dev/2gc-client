@@ -1,0 +1,67 @@
+[package]
+name = "twogc-cloudbridge"
+version = "1.4.3"
+description = "2GC-CloudBridge"
+authors = ["2GC"]
+edition = "2024"
+license = "EPL-2.0"
+repository = "https://github.com/twogc/2gc-CloudBridge"
+rust-version = "1.86.0"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+reqwest = { version = "0.11", features = ["blocking", "rustls-tls"] }
+
+[dependencies]
+tauri = { version = "2", features = ["macos-private-api", "tray-icon", "image-png"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tauri-plugin-os = "2"
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+lazy_static = "1.4"
+jsonwebtoken = "8.2"
+aes-gcm = "0.10.0"
+aes = "0.8.4"
+aead = "0.5.2"
+rand_core = "0.6.0"
+get_if_addrs = "0.5.3"
+sha2 = "0.10.6"
+base64 = "0.22.1"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-process = "2"
+tauri-plugin-notification = "2"
+keyring = { version = "2.3.0" }
+sysinfo = "0.34.2"
+os_info = "3.10.0"
+hostname = "0.3"
+encoding = "0.2.33"
+encoding-index-singlebyte = "1.20141219.5"
+webbrowser = "1.0.3"
+urlencoding = "2"
+chrono = "0.4"
+dirs = "5.0"
+ctrlc = "3.4.7"
+image = "0.24.7"
+
+# Необязательно, но если используешь (например, для настройки/конфига):
+sled = "0.34"
+confy = "0.6.1"
+block-modes = "0.8"
+rand = "0.8"
+
+# Специфичный плагин, если нужен только на macOS (можно добавить):
+# tauri-plugin-opener = "2"
+
+[features]
+custom-protocol = [ "tauri/custom-protocol" ]
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-single-instance = "2"
+
+# Если нужны специфичные фичи keyring только на macOS:
+#[target.'cfg(target_os = "macos")'.dependencies]
+#keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+

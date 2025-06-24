@@ -1,0 +1,1 @@
+export const USER_AGENT = '2GC-CloudBridge/1.4.2'; 
