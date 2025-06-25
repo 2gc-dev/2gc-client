@@ -54,13 +54,16 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install npm dependencies
-        run: npm install
-        working-directory: ./src
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Install dependencies
+        run: pnpm install
 
       - name: Build frontend
-        run: npm run build
-        working-directory: ./src
+        run: pnpm run build
 
       # Установка tauri-cli для cargo
       - name: Install Tauri CLI
