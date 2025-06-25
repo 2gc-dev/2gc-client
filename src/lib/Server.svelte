@@ -317,39 +317,16 @@ function filteredCompanies() {
 
 $: filteredCompanyInfo = filteredCompanies();
 
-let activityStats = {
-  today: 3,
-  week: 12,
-  month: 40,
-  last: '2025-06-05 13:45'
-};
-
-let activityChart = [
-  { label: 'Пн', value: 40 },
-  { label: 'Вт', value: 60 },
-  { label: 'Ср', value: 30 },
-  { label: 'Чт', value: 50 },
-  { label: 'Пт', value: 70 },
-  { label: 'Сб', value: 20 },
-  { label: 'Вс', value: 10 }
-];
-
 let activitySearch = '';
 let activityType = 'all';
-
-let activityHistory = [
-  { date: '2025-06-05 13:45', action: 'Вход', server: '-', success: true, type: 'login' },
-  { date: '2025-06-05 13:50', action: 'Подключение к RDP', server: 'Server1', success: true, type: 'connect' },
-  { date: '2025-06-05 14:00', action: 'Изменение настроек', server: '-', success: true, type: 'settings' },
-  { date: '2025-06-05 14:10', action: 'Подключение к SSH', server: 'Server2', success: false, type: 'connect' }
-];
+let activityHistory = [];
 
 $: filteredActivity = activityHistory.filter(item =>
   (activityType === 'all' || item.type === activityType) &&
   (activitySearch === '' ||
-    item.action.toLowerCase().includes(activitySearch.toLowerCase()) ||
-    item.server.toLowerCase().includes(activitySearch.toLowerCase()) ||
-    item.date.includes(activitySearch))
+    item.action?.toLowerCase().includes(activitySearch.toLowerCase()) ||
+    item.server?.toLowerCase().includes(activitySearch.toLowerCase()) ||
+    item.date?.includes(activitySearch))
 );
 
 let activeSessions = [
@@ -625,53 +602,6 @@ function handleTooltipMouseLeave() {
           </div>
         {:else if $activeTabStore === 'activity'}
           <div class="activity-container">
-    <!-- Статистика -->
-    <div class="activity-section">
-      <h3 class="activity-title">{$t('activity_stats')}</h3>
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-icon"><i class="fas fa-plug"></i></div>
-          <div class="stat-info">
-            <div class="stat-value">{activityStats.today}</div>
-            <div class="stat-label">{$t('connections_today')}</div>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon"><i class="fas fa-calendar-week"></i></div>
-          <div class="stat-info">
-            <div class="stat-value">{activityStats.week}</div>
-            <div class="stat-label">{$t('connections_week')}</div>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon"><i class="fas fa-calendar-alt"></i></div>
-          <div class="stat-info">
-            <div class="stat-value">{activityStats.month}</div>
-            <div class="stat-label">{$t('connections_month')}</div>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon"><i class="fas fa-clock"></i></div>
-          <div class="stat-info">
-            <div class="stat-value">{activityStats.last}</div>
-            <div class="stat-label">{$t('last_connection')}</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- График активности (заглушка) -->
-    <div class="activity-section">
-      <h3 class="activity-title">{$t('activity_chart')}</h3>
-      <div class="chart-container">
-        <div class="chart-placeholder">
-          {#each activityChart as bar}
-            <div class="chart-bar" style="height: {bar.value}px" title={bar.label}></div>
-          {/each}
-        </div>
-      </div>
-    </div>
-
     <!-- Фильтры и поиск -->
     <div class="activity-section">
       <h3 class="activity-title">{$t('activity_history')}</h3>
@@ -695,36 +625,25 @@ function handleTooltipMouseLeave() {
             </tr>
           </thead>
           <tbody>
-            {#each filteredActivity as item}
-              <tr>
-                <td>{item.date}</td>
-                <td>{item.action}</td>
-                <td>{item.server}</td>
-                <td>
-                  <span class="status-badge {item.success ? 'success' : 'error'}">
-                    {item.success ? $t('success') : $t('error')}
-                  </span>
-                </td>
-              </tr>
-            {/each}
+            {#if filteredActivity.length === 0}
+              <tr><td colspan="4" style="text-align:center; color:#888;">Нет данных</td></tr>
+            {:else}
+              {#each filteredActivity as item}
+                <tr>
+                  <td>{item.date}</td>
+                  <td>{item.action}</td>
+                  <td>{item.server}</td>
+                  <td>
+                    <span class="status-badge {item.success ? 'success' : 'error'}">
+                      {item.success ? $t('success') : $t('error')}
+                    </span>
+                  </td>
+                </tr>
+              {/each}
+            {/if}
           </tbody>
         </table>
       </div>
-    </div>
-
-    <!-- Статусы -->
-    <div class="activity-section">
-      <h3 class="activity-title">{$t('current_sessions')}</h3>
-      <ul>
-        {#each activeSessions as session}
-          <li>
-            <span class="status-badge {session.active ? 'success' : 'error'}">
-              {session.active ? $t('active') : $t('inactive')}
-            </span>
-            {session.server} ({session.protocol})
-          </li>
-        {/each}
-      </ul>
     </div>
   </div>
         {:else if $activeTabStore === 'support'}
