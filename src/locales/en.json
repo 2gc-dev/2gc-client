@@ -179,5 +179,7 @@
         }
       ]
     }
-  }
+  },
+  "login_tooltip": "Click to sign in",
+  "login_tooltip_title": "Sign in to service"
 }

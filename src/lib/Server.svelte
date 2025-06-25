@@ -377,6 +377,30 @@ onMount(() => {
   });
 });
 
+// Tooltip state
+let showTooltip = false;
+let tooltipX = 0;
+let tooltipY = 0;
+let tooltipWidth = 0;
+let tooltipHeight = 0;
+let tooltipData: { serviceName: string } | null = null;
+let tooltipTimeout: ReturnType<typeof setTimeout> | null = null;
+
+function handleTooltipMouseEnter(event: MouseEvent, service: Service) {
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  tooltipX = rect.left + rect.width / 2;
+  tooltipY = rect.top;
+  tooltipWidth = rect.width;
+  tooltipHeight = rect.height;
+  tooltipData = { serviceName: service.name };
+  showTooltip = true;
+}
+
+function handleTooltipMouseLeave() {
+  showTooltip = false;
+  tooltipData = null;
+}
+
 </script>
 
 {#if $user}
@@ -437,12 +461,44 @@ onMount(() => {
                               <span class="slider"></span>
                             </label>
                             {#if getServiceStatusById(service.id)}
-                              <i
-                                class="fa-solid fa-arrow-right-to-bracket text-white cursor-pointer transition-transform hover:scale-125"
-                                style="font-size: 1.375rem;"
-                                title="{$t('login_title')}"
-                                on:click={() => handleConnectClick(service, company.id)}
-                              ></i>
+                              <div class="relative inline-block group">
+                                <i
+                                  class="fa-solid fa-arrow-right-to-bracket text-white cursor-pointer transition-transform hover:scale-125"
+                                  style="font-size: 1.375rem;"
+                                  title="{$t('login_title')}"
+                                  on:click={() => handleConnectClick(service, company.id)}
+                                  on:mouseenter={(e) => handleTooltipMouseEnter(e, service)}
+                                  on:mouseleave={handleTooltipMouseLeave}
+                                ></i>
+                                <div
+                                  class="absolute invisible opacity-0 group-hover:visible group-hover:opacity-100 bottom-full left-1/2 -translate-x-1/2 mb-3 w-72 transition-all duration-300 ease-out transform group-hover:translate-y-0 translate-y-2"
+                                  style="z-index: 99999; position: absolute;"
+                                >
+                                  <div
+                                    class="relative p-4 bg-gradient-to-br from-gray-900/95 to-gray-800/95 backdrop-blur-md rounded-2xl border border-white/10 shadow-[0_0_30px_rgba(79,70,229,0.15)]"
+                                  >
+                                    <div class="flex items-center gap-3 mb-2">
+                                      <div
+                                        class="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-500/20"
+                                      >
+                                        <i class="fa-solid fa-arrow-right-to-bracket text-indigo-400 w-4 h-4"></i>
+                                      </div>
+                                      <h3 class="text-sm font-semibold text-white">Вход в сервис</h3>
+                                    </div>
+                                    <div class="space-y-2">
+                                      <p class="text-sm text-gray-300">
+                                        {$t('login_tooltip')}
+                                      </p>
+                                    </div>
+                                    <div
+                                      class="absolute inset-0 rounded-2xl bg-gradient-to-r from-indigo-500/10 to-purple-500/10 blur-xl opacity-50"
+                                    ></div>
+                                    <div
+                                      class="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-gradient-to-br from-gray-900/95 to-gray-800/95 rotate-45 border-r border-b border-white/10"
+                                    ></div>
+                                  </div>
+                                </div>
+                              </div>
                             {:else}
                               <i
                                 class="fa-solid fa-arrow-right-to-bracket text-zinc-700 cursor-pointer transition-transform hover:scale-125"
@@ -876,6 +932,38 @@ onMount(() => {
 
 {#if showPushModal}
   <PushModal title={pushTitle} body={pushBody} url={pushUrl} onClose={() => showPushModal = false} />
+{/if}
+
+<!-- Глобальный tooltip -->
+{#if showTooltip && tooltipData}
+  <div
+    class="fixed z-[99999]"
+    style="left: {tooltipX}px; top: {tooltipY - 16}px; transform: translate(-50%, -100%); pointer-events: none; min-width: 180px; max-width: 340px; width: auto;"
+  >
+    <div
+      class="relative p-4 bg-gradient-to-br from-gray-900/95 to-gray-800/95 backdrop-blur-md rounded-2xl border border-white/10 shadow-[0_0_30px_rgba(79,70,229,0.15)]"
+    >
+      <div class="flex items-center gap-3 mb-2">
+        <div
+          class="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-500/20"
+        >
+          <i class="fa-solid fa-arrow-right-to-bracket text-indigo-400 w-4 h-4"></i>
+        </div>
+        <h3 class="text-sm font-semibold text-white">{$t('login_tooltip_title')}</h3>
+      </div>
+      <div class="space-y-2">
+        <p class="text-sm text-gray-300">
+          {$t('login_tooltip')}
+        </p>
+      </div>
+      <div
+        class="absolute inset-0 rounded-2xl bg-gradient-to-r from-indigo-500/10 to-purple-500/10 blur-xl opacity-50"
+      ></div>
+      <div
+        class="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-gradient-to-br from-gray-900/95 to-gray-800/95 rotate-45 border-r border-b border-white/10"
+      ></div>
+    </div>
+  </div>
 {/if}
 
 {:else}
@@ -2149,5 +2237,34 @@ td {
   height: 20px;
   background: linear-gradient(135deg, #4b9eff, #6bb6ff);
   border-radius: 2px;
+}
+
+.pulse {
+  animation: pulse 1.2s infinite;
+}
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(34,197,94,0.7); }
+  70% { box-shadow: 0 0 0 10px rgba(34,197,94,0); }
+  100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+}
+
+.custom-tooltip {
+  position: absolute;
+  left: 110%;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #222;
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 4px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  z-index: 10;
+  font-size: 0.95rem;
+}
+.group:hover .custom-tooltip {
+  opacity: 1;
 }
 </style>

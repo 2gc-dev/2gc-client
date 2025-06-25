@@ -11,8 +11,8 @@
   "logout_button": "Выйти",
   "checkUpdates": "Проверить обновление",
   "version": "Версия:",
-  "tunnel_active": "Туннель уже активен!",
-  "tunnel_not_active": "Сначала активируйте туннель!",
+  "tunnel_active": "Туннель активен!",
+  "tunnel_not_active": "Отключен туннель!",
   "company_list_updated": "Список компаний обновлён",
   "company_list_update_error": "Ошибка обновления списка компаний",
   "clear_memory_button": "Очистить память",
@@ -201,5 +201,7 @@
         }
       ]
     }
-  }
+  },
+  "login_tooltip": "Нажмите для входа",
+  "login_tooltip_title": "Вход в сервис"
 }
