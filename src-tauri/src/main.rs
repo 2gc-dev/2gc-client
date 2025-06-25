@@ -160,6 +160,26 @@ async fn try_remember_token() -> bool {
 
 #[tauri::command]
 async fn singout() {
+    // Очищаем Windows Credential Manager
+    if let Err(e) = process::clear_windows_credentials().await {
+        eprintln!("Ошибка при очистке учетных данных Windows: {}", e);
+    }
+    
+    // Останавливаем все процессы
+    process::stop_all_processes().await;
+    
+    // Очищаем выделенные порты
+    process::clear_all_ports().await;
+    
+    // Очищаем сохраненные учетные данные RDP/SSH
+    process::clear_saved_credentials().await;
+    
+    // Очищаем сохраненные учетные данные из keyring
+    if let Err(e) = crypto_storage::clear_file().await {
+        eprintln!("Ошибка при очистке локального хранилища: {}", e);
+    }
+    
+    // Удаляем пользователя
     delete_user().await;
 }
 

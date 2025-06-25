@@ -359,6 +359,15 @@ pub async fn stop_all_cloudflared_processes(app_handle: &AppHandle) {
     }
 }
 
+pub async fn stop_all_processes() {
+    let settings = SERVER_PROCESS.lock().await;
+    for server_process in settings.iter() {
+        server_process.cloudflare.stop_process().await;
+        server_process.rdp.stop_process().await;
+        server_process.ssh.stop_process().await;
+    }
+}
+
 #[cfg(target_os = "macos")]
 pub async fn launch_rdp_client_with_rdp_file(
     tunnel_id: &str,
@@ -397,4 +406,85 @@ redirectclipboard:i:1
     }
     println!("✅ Запущен .rdp файл: {:?}", file_path);
     Ok(())
+}
+
+#[cfg(target_os = "windows")]
+pub async fn clear_windows_credentials() -> io::Result<()> {
+    use std::process::Command;
+    use std::os::windows::process::CommandExt;
+    
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    
+    fn run_cmdkey_command(args: &[&str]) -> std::process::Output {
+        Command::new("cmd")
+            .args(&["/C", "cmdkey"])
+            .args(args)
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .expect("Failed to run cmdkey via cmd /C")
+    }
+    
+    // Получаем список всех сохраненных учетных данных
+    let output = run_cmdkey_command(&["/list"]);
+    
+    if let Ok(output) = output {
+        let output_str = String::from_utf8_lossy(&output.stdout);
+        
+        // Ищем строки, содержащие "TERMSRV/127.0.0.1:" (наши RDP учетные данные)
+        for line in output_str.lines() {
+            if line.contains("TERMSRV/127.0.0.1:") {
+                // Извлекаем target из строки
+                if let Some(target_start) = line.find("TERMSRV/") {
+                    if let Some(target_end) = line[target_start..].find(" ") {
+                        let target = &line[target_start..target_start + target_end];
+                        println!("Удаляем учетные данные для: {}", target);
+                        let _ = run_cmdkey_command(&["/delete", target]);
+                    }
+                }
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+pub async fn clear_windows_credentials() -> std::io::Result<()> {
+    // На macOS нет Windows Credential Manager, поэтому просто возвращаем Ok
+    Ok(())
+}
+
+pub async fn clear_all_ports() {
+    #[cfg(target_os = "windows")]
+    {
+        let section = "port_storage";
+        // Удаляем все записи портов в диапазоне 1100-1200
+        for port in 1100..1200 {
+            let port_str = port.to_string();
+            let test_key = format!("check-{}", port);
+            let _ = delete_key_from_ini(section, &port_str).await;
+            let _ = delete_key_from_ini(section, &test_key).await;
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        // На macOS порты хранятся в StorageConfig, очистка происходит автоматически
+        // при перезапуске приложения
+    }
+}
+
+pub async fn clear_saved_credentials() {
+    #[cfg(target_os = "windows")]
+    {
+        // Очищаем все секции, которые могут содержать сохраненные учетные данные
+        // Секции создаются как последние 10 символов ID сервера
+        for i in 0..1000 {
+            let section = format!("{:?}", i);
+            let _ = delete_key_from_ini(&section, "login").await;
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        // На macOS учетные данные RDP/SSH не сохраняются в keyring
+    }
 }
