@@ -1,0 +1,101 @@
+name: "Release Build"
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+permissions:
+  contents: write
+
+jobs:
+  build-tauri:
+    name: Build for ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: "macos-intel"
+            os: "macos-latest"
+            artifact: "2GC-CloudBridge-macos-intel"
+            tauri_target: "--target x86_64-apple-darwin"
+          - platform: "macos-arm64"
+            os: "macos-latest"
+            artifact: "2GC-CloudBridge-macos-arm64"
+            tauri_target: "--target aarch64-apple-darwin"
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      # Для macos-intel — скачиваем Cloudflare CLI (как обсуждали выше)
+      - name: Download and place Cloudflare CLI for macOS Intel
+        if: matrix.platform == 'macos-intel'
+        run: |
+          mkdir -p src-tauri/binaries
+          curl -L -o cfcli.tar.gz https://github.com/epiHATR/cloudflare-cli/releases/download/v0.1.64/darwin-arm64-v0.1.64.tar.gz
+          tar -xf cfcli.tar.gz
+          mv cloudflare src-tauri/binaries/cloudflared-x86_64-apple-darwin
+          chmod +x src-tauri/binaries/cloudflared-x86_64-apple-darwin
+          ls -lh src-tauri/binaries/
+
+      # Устанавливаем rust-таргеты для Mac
+      - name: Install ARM target (macOS ARM)
+        if: matrix.platform == 'macos-arm64'
+        run: rustup target add aarch64-apple-darwin
+
+      - name: Install Intel target (macOS Intel)
+        if: matrix.platform == 'macos-intel'
+        run: rustup target add x86_64-apple-darwin
+
+      # Node & Svelte
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install npm dependencies
+        run: npm install
+        working-directory: ./src
+
+      - name: Build frontend
+        run: npm run build
+        working-directory: ./src
+
+      # Установка tauri-cli для cargo
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2.0.0" || true
+
+      # Сборка Tauri-приложения
+      - name: Build Tauri app
+        run: cargo tauri build ${{ matrix.tauri_target }}
+        working-directory: ./src-tauri
+
+      # Загрузка всех артефактов bundle для текущей платформы
+      - name: Upload build artifacts (all platforms)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            src-tauri/target/*/release/bundle/**/*
+            src-tauri/target/release/bundle/**/*
+
+  release:
+   name: "Create Public GitHub Release"
+   needs: build-tauri
+   runs-on: ubuntu-latest
+   steps:
+    - name: Download all build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: ./artifacts
+
+    - name: Create GitHub Release on public repo
+      uses: softprops/action-gh-release@v2
+      with:
+        repository: 2gc-dev/2gc-desktop-client
+        tag_name: ${{ github.ref_name }}
+        files: ./artifacts/**/*
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.RELEASE_PAT }}
