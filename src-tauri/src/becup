@@ -78,9 +78,9 @@ impl User {
                 let client = Client::new();
                 let response = client
                     .post(url)
-                    .header("User-Agent", "2GC-CloudBridge/1.4.3")
+                    .header("User-Agent", "2GC-CloudBridge/1.4.7")
                     .header("X-Client-Type", "desktop")
-                    .header("X-Client-Version", "1.4.3")
+                    .header("X-Client-Version", "1.4.7")
                     .header("X-Client-OS", std::env::consts::OS)
                     .header("X-Client-Arch", std::env::consts::ARCH)
                     .header("Content-Type", "application/json")
@@ -132,9 +132,9 @@ impl User {
         let client = Client::new();
         let response = client
             .post(url)
-            .header("User-Agent", "2GC-CloudBridge/1.4.3")
+            .header("User-Agent", "2GC-CloudBridge/1.4.7")
             .header("X-Client-Type", "desktop")
-            .header("X-Client-Version", "1.4.3")
+            .header("X-Client-Version", "1.4.7")
             .header("X-Client-OS", std::env::consts::OS)
             .header("X-Client-Arch", std::env::consts::ARCH)
             .header("Content-Type", "application/json")
@@ -195,9 +195,9 @@ impl User {
         let client = Client::new();
         let response = client
             .post(url)
-            .header("User-Agent", "2GC-CloudBridge/1.4.3")
+            .header("User-Agent", "2GC-CloudBridge/1.4.7")
             .header("X-Client-Type", "desktop")
-            .header("X-Client-Version", "1.4.3")
+            .header("X-Client-Version", "1.4.7")
             .header("X-Client-OS", std::env::consts::OS)
             .header("X-Client-Arch", std::env::consts::ARCH)
             .header("Content-Type", "application/json")

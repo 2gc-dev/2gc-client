@@ -1,6 +1,6 @@
 [package]
 name = "twogc-cloudbridge"
-version = "1.4.3"
+version = "1.4.7"
 description = "2GC-CloudBridge"
 authors = ["2GC"]
 edition = "2024"

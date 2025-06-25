@@ -10,7 +10,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
 use os_info;
 
-const USER_AGENT: &str = "2GC-CloudBridge/1.4.6";
+const USER_AGENT: &str = "2GC-CloudBridge/1.4.7";
 const KEYRING_SERVICE: &str = "2gc-cloudbridge";
 const KEYRING_USER: &str = "refresh_token";
 const KEYRING_USER_NAME: &str = "user_name";

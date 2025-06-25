@@ -1745,7 +1745,7 @@ packages:
   emoji-regex@8.0.0:
     resolution: {integrity: sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A==}
 
-  end-of-stream@1.4.5:
+  end-of-stream@1.4.7:
     resolution: {integrity: sha512-ooEGc6HP26xXq/N+GCGOT0JKCLDGrq2bQUZrQ7gyrJiZANJ/8YDTxTpQBXGMn+WbIQXNVpyWymm7KYVICQnyOg==}
 
   entities@1.1.2:
@@ -2270,7 +2270,7 @@ packages:
     resolution: {integrity: sha512-KIL7eQPfHQRC8+XluaIw7BHUwwqL19bQn4hzNgdr+1wXoU0KKj6rufu47lhY7KbJR2C6T6+PfyN0Ea7wkSS+qQ==}
     engines: {node: '>= 0.4'}
 
-  has-symbol-support-x@1.4.2:
+  has-symbol-support-x@1.4.7:
     resolution: {integrity: sha512-3ToOva++HaW+eCpgqZrCfN51IPB+7bJNVT6CUATzueB5Heb8o6Nam0V3HG5dlDvZU1Gn5QLcbahiKw/XVk5JJw==}
 
   has-symbols@1.1.0:
@@ -2697,7 +2697,7 @@ packages:
   jsonfile@6.1.0:
     resolution: {integrity: sha512-5dgndWOriYSm5cnYaJNhalLNDKOqFwyDB/rr1E9ZsGciGvKPs8R2xYGCacuf3z6K1YKDz182fd+fY3cn3pMqXQ==}
 
-  jsprim@1.4.2:
+  jsprim@1.4.7:
     resolution: {integrity: sha512-P2bSOMAc/ciLz6DzgjVlGJP9+BrJWu5UDGK70C2iweC5QBIeFf0ZXRvGjEj2uYgrY2MkAAhsSWHDWlFtEroZWw==}
     engines: {node: '>=0.6.0'}
 
@@ -4006,7 +4006,7 @@ packages:
     resolution: {integrity: sha512-nWJ91DjeOkej/TA8pXQ3myruKpKEYgqvpw9lz4OPHj/NWFNluYrjbz9j01CJ8yKQd2g4jFoOkINCTW2I5LEEyw==}
     engines: {node: '>= 0.4'}
 
-  unbzip2-stream@1.4.3:
+  unbzip2-stream@1.4.7:
     resolution: {integrity: sha512-mlExGW4w71ebDJviH16lQLtZS32VKqsSfk80GCfUlwT/4/hNRFsoscrF/c++9xinkMzECL1uL9DDwXqFWkruPg==}
 
   undici-types@7.8.0:
@@ -5692,7 +5692,7 @@ snapshots:
       file-type: 6.2.0
       is-stream: 1.1.0
       seek-bzip: 1.0.6
-      unbzip2-stream: 1.4.3
+      unbzip2-stream: 1.4.7
 
   decompress-targz@4.1.1:
     dependencies:
@@ -5836,7 +5836,7 @@ snapshots:
 
   emoji-regex@8.0.0: {}
 
-  end-of-stream@1.4.5:
+  end-of-stream@1.4.7:
     dependencies:
       once: 1.4.0
 
@@ -6597,13 +6597,13 @@ snapshots:
     dependencies:
       dunder-proto: 1.0.1
 
-  has-symbol-support-x@1.4.2: {}
+  has-symbol-support-x@1.4.7: {}
 
   has-symbols@1.1.0: {}
 
   has-to-string-tag-x@1.4.1:
     dependencies:
-      has-symbol-support-x: 1.4.2
+      has-symbol-support-x: 1.4.7
 
   has-tostringtag@1.0.2:
     dependencies:
@@ -6647,7 +6647,7 @@ snapshots:
   http-signature@1.2.0:
     dependencies:
       assert-plus: 1.0.0
-      jsprim: 1.4.2
+      jsprim: 1.4.7
       sshpk: 1.18.0
 
   http2-wrapper@1.0.3:
@@ -7034,7 +7034,7 @@ snapshots:
     optionalDependencies:
       graceful-fs: 4.2.11
 
-  jsprim@1.4.2:
+  jsprim@1.4.7:
     dependencies:
       assert-plus: 1.0.0
       extsprintf: 1.3.0
@@ -7616,7 +7616,7 @@ snapshots:
 
   pump@3.0.3:
     dependencies:
-      end-of-stream: 1.4.5
+      end-of-stream: 1.4.7
       once: 1.4.0
 
   punycode@2.3.1: {}
@@ -8233,7 +8233,7 @@ snapshots:
     dependencies:
       bl: 1.2.3
       buffer-alloc: 1.2.0
-      end-of-stream: 1.4.5
+      end-of-stream: 1.4.7
       fs-constants: 1.0.0
       readable-stream: 2.3.8
       to-buffer: 1.2.1
@@ -8242,7 +8242,7 @@ snapshots:
   tar-stream@2.2.0:
     dependencies:
       bl: 4.1.0
-      end-of-stream: 1.4.5
+      end-of-stream: 1.4.7
       fs-constants: 1.0.0
       inherits: 2.0.4
       readable-stream: 3.6.2
@@ -8429,7 +8429,7 @@ snapshots:
       has-symbols: 1.1.0
       which-boxed-primitive: 1.1.1
 
-  unbzip2-stream@1.4.3:
+  unbzip2-stream@1.4.7:
     dependencies:
       buffer: 5.7.1
       through: 2.3.8
