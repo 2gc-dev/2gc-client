@@ -20,12 +20,15 @@ pnpm-debug.log*
 # Tauri
 /src-tauri/target/
 /src-tauri/binaries/
-/src-tauri/programs/
+/src-tauri/programs/*
+!/src-tauri/programs/.gitkeep
 /src-tauri/storage/
 /src-tauri/storage.ini
 /src-tauri/updater.exe
 /src-tauri/updater.ini
 /src-tauri/cloudflared.exe
+/src-tauri/putty.exe
+/src-tauri/putty-x86_64-pc-windows-msvc.exe
 
 # Rust
 /target/

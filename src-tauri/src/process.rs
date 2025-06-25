@@ -189,11 +189,12 @@ impl ProcessHandler {
     }
     pub async fn stop_process(&self) {
         let mut processes = self.child_processes.lock().await;
+        println!("Останавливаем {} процессов", processes.len());
         for mut process in processes.drain(..) {
             if let Err(e) = process.kill() {
-                eprintln!("Failed to kill process: {}", e);
+                println!("Ошибка при остановке процесса: {:?}", e);
             } else {
-                println!("Process killed");
+                println!("Процесс успешно остановлен");
             }
         }
     }
@@ -352,7 +353,9 @@ pub async fn get_free_port(key: &str) -> u16 {
 }
 
 pub async fn stop_all_cloudflared_processes(app_handle: &AppHandle) {
+    println!("Останавливаем все cloudflared процессы");
     let settings = SERVER_PROCESS.lock().await;
+    println!("Найдено {} серверных процессов", settings.len());
     for server_process in settings.iter() {
         println!("Останавливаем cloudflared для tunnel_id: {}", server_process.tunnel_id);
         server_process.cloudflare.stop_process().await;
@@ -360,8 +363,11 @@ pub async fn stop_all_cloudflared_processes(app_handle: &AppHandle) {
 }
 
 pub async fn stop_all_processes() {
+    println!("Останавливаем все процессы");
     let settings = SERVER_PROCESS.lock().await;
+    println!("Найдено {} серверных процессов", settings.len());
     for server_process in settings.iter() {
+        println!("Останавливаем все процессы для tunnel_id: {}", server_process.tunnel_id);
         server_process.cloudflare.stop_process().await;
         server_process.rdp.stop_process().await;
         server_process.ssh.stop_process().await;
@@ -404,7 +410,6 @@ redirectclipboard:i:1
     if !status.success() {
         return Err(format!("❌ Ошибка при запуске RDP-файла: {:?}", status));
     }
-    println!("✅ Запущен .rdp файл: {:?}", file_path);
     Ok(())
 }
 
@@ -412,39 +417,23 @@ redirectclipboard:i:1
 pub async fn clear_windows_credentials() -> io::Result<()> {
     use std::process::Command;
     use std::os::windows::process::CommandExt;
-    
     const CREATE_NO_WINDOW: u32 = 0x08000000;
-    
     fn run_cmdkey_command(args: &[&str]) -> std::process::Output {
-        Command::new("cmd")
-            .args(&["/C", "cmdkey"])
+        Command::new("cmdkey")
             .args(args)
             .creation_flags(CREATE_NO_WINDOW)
             .output()
-            .expect("Failed to run cmdkey via cmd /C")
+            .expect("Failed to run cmdkey command")
     }
-    
-    // Получаем список всех сохраненных учетных данных
     let output = run_cmdkey_command(&["/list"]);
-    
-    if let Ok(output) = output {
-        let output_str = String::from_utf8_lossy(&output.stdout);
-        
-        // Ищем строки, содержащие "TERMSRV/127.0.0.1:" (наши RDP учетные данные)
-        for line in output_str.lines() {
-            if line.contains("TERMSRV/127.0.0.1:") {
-                // Извлекаем target из строки
-                if let Some(target_start) = line.find("TERMSRV/") {
-                    if let Some(target_end) = line[target_start..].find(" ") {
-                        let target = &line[target_start..target_start + target_end];
-                        println!("Удаляем учетные данные для: {}", target);
-                        let _ = run_cmdkey_command(&["/delete", target]);
-                    }
-                }
+    let output_str = String::from_utf8_lossy(&output.stdout);
+    for line in output_str.lines() {
+        if let Some(target) = line.strip_prefix("    Target: ") {
+            if target.contains("2GC") || target.contains("2gc") || target.contains("TERMSRV/127.0.0.1:") {
+                let _ = run_cmdkey_command(&["/delete", target]);
             }
         }
     }
-    
     Ok(())
 }
 

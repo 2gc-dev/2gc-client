@@ -156,9 +156,9 @@ pub async fn collect_and_send_info_with_token(access_token: &str) -> Result<(), 
         .await?;
 
     if res.status().is_success() {
-        println!("🔧 Системная информация отправлена успешно");
+        // Системная информация отправлена успешно
     } else {
-        println!("❌ Ошибка при отправке системной информации: {}", res.status());
+        // Ошибка при отправке системной информации
     }
 
     Ok(())
@@ -260,8 +260,6 @@ impl User {
     pub async fn try_remember() -> Result<User, Box<dyn Error + Send + Sync>> {
         let refresh_token = get_refresh_token_from_keyring();
 
-        println!("refresh_token {:?}", refresh_token);
-
         match refresh_token {
             Some(token) => {
                 let url = "https://lk.2gc.ru/api/token/refresh/";
@@ -283,8 +281,6 @@ impl User {
                     .await?;
                 let response_status = response.status();
                 let response_tokens: Value = response.json().await?;
-                println!("[AUTH] Refresh response: {:?}", response_tokens);
-                println!("[AUTH] Refresh status: {}", response_status);
 
                 let access_token = response_tokens["access"]
                     .as_str()
@@ -346,39 +342,44 @@ impl User {
             .await?;
         let response_status = response.status();
         let response_tokens: Value = response.json().await?;
-        println!("[AUTH] Server response: {:?}", response_tokens);
-        println!("[AUTH] Response status: {}", response_status);
 
-        let access_token = response_tokens["access"]
-            .as_str()
-            .ok_or("Missing access token")?
-            .to_string();
+        if response_status.is_success() {
+            let access_token = response_tokens["access"]
+                .as_str()
+                .ok_or("Missing access token")?
+                .to_string();
 
-        let refresh_token = response_tokens["refresh"]
-            .as_str()
-            .ok_or("Missing refresh token")?
-            .to_string();
+            let refresh_token = response_tokens["refresh"]
+                .as_str()
+                .ok_or("Missing refresh token")?
+                .to_string();
 
-        let user_name = response_tokens["name"].as_str().unwrap_or("Unknown").to_string();
-        set_user_name_to_keyring(&user_name);
+            let user_name = response_tokens["name"].as_str().unwrap_or("Unknown").to_string();
+            set_user_name_to_keyring(&user_name);
 
-        let exp_time = User::validate_token(&access_token).unwrap();
+            let exp_time = User::validate_token(&access_token).unwrap();
 
-        if is_save {
-            set_refresh_token_to_keyring(&refresh_token);
+            if is_save {
+                set_refresh_token_to_keyring(&refresh_token);
+            } else {
+                delete_refresh_token_from_keyring();
+            }
+
+            Ok(User {
+                refresh_token,
+                access_token,
+                exp: exp_time,
+                companys: Vec::new(),
+                services: HashMap::new(),
+                is_save,
+                name: user_name,
+            })
         } else {
-            delete_refresh_token_from_keyring();
+            Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Login failed",
+            )))
         }
-
-        Ok(User {
-            refresh_token,
-            access_token,
-            exp: exp_time,
-            companys: Vec::new(),
-            services: HashMap::new(),
-            is_save,
-            name: user_name,
-        })
     }
 
     async fn update_token(&mut self) -> Result<(), Box<dyn std::error::Error>> {
@@ -399,7 +400,6 @@ impl User {
             .send()
             .await?;
         let response_tokens: serde_json::Value = response.json().await?;
-        println!("response {:?}", response_tokens);
         let access_token = response_tokens["access"].as_str().unwrap().to_string();
         let refresh_token = response_tokens["refresh"].as_str().unwrap().to_string();
 

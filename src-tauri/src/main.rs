@@ -80,13 +80,13 @@ async fn auth_user(email: String, password: String, remember: bool) -> bool {
             remoute::create_user(user).await;
             tokio::spawn(async move {
                 if let Err(e) = remoute::collect_and_send_info_with_token(&access_token).await {
-                    eprintln!("Ошибка отправки системной информации: {}", e);
+                    // Ошибка отправки системной информации
                 }
             });
             true
         }
         Err(err) => {
-            eprintln!("Ошибка входа: {:?}", err);
+            // Ошибка входа
             false
         }
     }
@@ -147,7 +147,6 @@ async fn get_servers() -> MainInfo {
 
 #[tauri::command]
 async fn try_remember_token() -> bool {
-    println!("try_remember_token");
     let new_user = User::try_remember().await;
     match new_user {
         Ok(user) => {
@@ -161,35 +160,27 @@ async fn try_remember_token() -> bool {
 #[tauri::command]
 async fn singout() {
     // Очищаем Windows Credential Manager
-    if let Err(e) = process::clear_windows_credentials().await {
-        eprintln!("Ошибка при очистке учетных данных Windows: {}", e);
-    }
-    
+    let _ = process::clear_windows_credentials().await;
+    // Даем системе время завершить удаление ключей
+    tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
     // Останавливаем все процессы
     process::stop_all_processes().await;
-    
     // Очищаем выделенные порты
     process::clear_all_ports().await;
-    
     // Очищаем сохраненные учетные данные RDP/SSH
     process::clear_saved_credentials().await;
-    
     // Очищаем сохраненные учетные данные из keyring
-    if let Err(e) = crypto_storage::clear_file().await {
-        eprintln!("Ошибка при очистке локального хранилища: {}", e);
-    }
-    
+    let _ = crypto_storage::clear_file().await;
     // Удаляем пользователя
     delete_user().await;
 }
 
 #[tauri::command]
 async fn clear_storage() {
-    println!("Clearing storage file...");
     let result = crypto_storage::clear_file().await;
     match result {
-        Ok(_) => println!("Storage cleared successfully."),
-        Err(e) => println!("Failed to clear storage: {:?}", e),
+        Ok(_) => {},
+        Err(e) => {},
     }
 }
 
@@ -262,8 +253,6 @@ async fn start_rdp(
         use std::process::Command;
         use tokio::time::{sleep, Duration};
         use std::path::Path;
-
-        println!("🔐 user: {:?}, pass: {:?}", username, password);
 
         let server_process = process::get_or_create_process(&tunnelid).await;
         let server_info = remoute::get_server_by_tunnel_id(&tunnelid).await;
@@ -427,33 +416,18 @@ fn start_ws_listener(app_handle: tauri::AppHandle, token: String) {
         let mut retry_secs = 1;
         loop {
             let url = format!("wss://lk.2gc.ru/ws/notifications/?token={}&x-client-type=desktop", token);
-            println!("[WS] Connecting to: {}", url);
-            println!("[WS] Token (first 20 chars): {}", &token[..token.len().min(20)]);
             let domain = "lk.2gc.ru";
             let connector = TlsConnector::new().unwrap();
             match TcpStream::connect((domain, 443)) {
                 Ok(stream) => {
-                    println!("[WS] TCP connected to {}:443", domain);
                     match connector.connect(domain, stream) {
                         Ok(tls_stream) => {
-                            println!("[WS] TLS connected");
                             // Создаём request с User-Agent
                             let mut request = url.into_client_request().unwrap();
                             request.headers_mut().append("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36".parse().unwrap());
                             
-                            println!("[WS] Request headers:");
-                            for (name, value) in request.headers() {
-                                println!("[WS]   {}: {:?}", name, value);
-                            }
-                            
                             match client(request, tls_stream) {
                                 Ok((mut socket, response)) => {
-                                    println!("[WS] WebSocket handshake successful!");
-                                    println!("[WS] Response status: {}", response.status());
-                                    println!("[WS] Response headers:");
-                                    for (name, value) in response.headers() {
-                                        println!("[WS]   {}: {:?}", name, value);
-                                    }
                                     retry_secs = 1;
                                     loop {
                                         match socket.read() {
@@ -462,49 +436,34 @@ fn start_ws_listener(app_handle: tauri::AppHandle, token: String) {
                                                     match serde_json::from_str::<serde_json::Value>(&txt) {
                                                         Ok(val) => {
                                                             if let Err(e) = app_handle.emit("push-notification", val) {
-                                                                eprintln!("[WS] Emit error: {:?}", e);
+                                                                // Emit error
                                                             }
-                                                            println!("[WS] Push: {}", txt);
                                                         }
                                                         Err(e) => {
-                                                            eprintln!("[WS] JSON parse error: {:?}", e);
+                                                            // JSON parse error
                                                         }
                                                     }
                                                 }
                                             }
                                             Err(e) => {
-                                                eprintln!("[WS] Read error: {:?}", e);
+                                                // Read error
                                                 break;
                                             }
                                         }
                                     }
-                                    println!("[WS] Disconnected, will retry");
                                 }
                                 Err(e) => {
-                                    eprintln!("[WS] WebSocket client error: {:?}", e);
-                                    // Попробуем вывести body ответа, если это HTTP ошибка
-                                    if let tungstenite::HandshakeError::Failure(tungstenite::Error::Http(response)) = &e {
-                                        println!("[WS] HTTP Response status: {}", response.status());
-                                        println!("[WS] HTTP Response headers:");
-                                        for (name, value) in response.headers() {
-                                            println!("[WS]   {}: {:?}", name, value);
-                                        }
-                                        if let Some(body) = &response.body() {
-                                            println!("[WS] HTTP Response body (first 500 chars):");
-                                            let body_str = String::from_utf8_lossy(body);
-                                            println!("[WS] {}", &body_str[..body_str.len().min(500)]);
-                                        }
-                                    }
+                                    // WebSocket client error
                                 }
                             }
                         }
                         Err(e) => {
-                            eprintln!("[WS] TLS connect error: {:?}", e);
+                            // TLS connect error
                         }
                     }
                 }
                 Err(e) => {
-                    eprintln!("[WS] TCP connect error: {:?}", e);
+                    // TCP connect error
                 }
             }
             thread::sleep(Duration::from_secs(retry_secs));
@@ -544,9 +503,10 @@ fn main() {
             let app_handle = app.handle().clone();
             std::thread::spawn(move || {
                 ctrlc::set_handler(move || {
-                    println!("SIGINT/SIGTERM - cleaning up processes");
                     tauri::async_runtime::block_on(async {
+                        // Останавливаем только процессы при Ctrl+C
                         crate::process::stop_all_cloudflared_processes(&app_handle).await;
+                        crate::process::stop_all_processes().await;
                     });
                     std::process::exit(0);
                 }).expect("Failed to set Ctrl-C handler");
@@ -576,9 +536,15 @@ fn main() {
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
+                println!("Окно закрывается, останавливаем процессы...");
                 let app_handle = window.app_handle().clone();
                 tauri::async_runtime::spawn(async move {
+                    // Останавливаем только процессы при закрытии окна
+                    println!("Вызываем stop_all_cloudflared_processes");
                     crate::process::stop_all_cloudflared_processes(&app_handle).await;
+                    println!("Вызываем stop_all_processes");
+                    crate::process::stop_all_processes().await;
+                    println!("Все процессы остановлены, выходим");
                     std::process::exit(0);
                 });
             }

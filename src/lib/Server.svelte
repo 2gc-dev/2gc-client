@@ -147,20 +147,18 @@ async function connectRdpImmediately() {
   const passwordInput = password;
 
   try {
-    const result = await invoke('start_rdp', {
-      tunnelid,
+    const result = await invoke<string>('start_rdp', {
+      tunnelid: tunnelid,
       username: usernameInput,
       password: passwordInput,
-      domain: domainPart || "",
-      remember
+      domain: domainPart,
+      remember: remember
     });
-
-    console.log('Результат запуска RDP:', result);
-
-    if (typeof result !== 'string' || !result.startsWith('RDP session started successfully')) {
-      console.error('Ошибка запуска RDP:', result);
-
-
+    
+    if (result) {
+      // RDP запущен успешно
+    } else {
+      toast.error($t('rdp_start_error'));
     }
 
     // Если результат корректный — просто скрываем модалку без уведомления
@@ -174,12 +172,10 @@ async function connectRdpImmediately() {
 }
 
 function singInSsh() {
-  console.log('SSH вход с', username, password, additional_data, useSSHKey);
   showModal = false;
 }
 
 async function selectFile() {
-  console.log('Выбор SSH ключа...');
   // Тут в реальной интеграции будет tauri-plugin-dialog
 }
 
@@ -296,12 +292,9 @@ async function signOut(event: Event) {
   await invoke('singout');
   await invoke('clear_storage');
   user.set(null);
-
   // Установить флаг выхода
   localStorage.setItem('logout_flag', 'true');
-
   showNotification($t('logout_notification'));
-
 }
 
 function filteredCompanies() {
