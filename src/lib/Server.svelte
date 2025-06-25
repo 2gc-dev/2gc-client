@@ -8,52 +8,51 @@ import Auth from '../lib/Auth.svelte';
 import { t } from 'svelte-i18n';
 import { locale } from 'svelte-i18n';
 import toast from 'svelte-french-toast'; // Добавлено для уведомлений
-
-function handleLocaleChange(e: Event) {
-  const value = (e.target as HTMLSelectElement).value;
-  locale.set(value);
-}
+import PushModal from './PushModal.svelte';
+import { listen } from '@tauri-apps/api/event';
+import AdvancedNewsTicker from './AdvancedNewsTicker.svelte';
 import ChatwootWidget from './ChatwootWidget.svelte';
 import { getVersion } from "@tauri-apps/api/app";
 import { platform } from '@tauri-apps/plugin-os';
 import { settings, saveSettings } from '../store/settings';
 
-  let isMacOS = false;
+function handleLocaleChange(e: Event) {
+  const value = (e.target as HTMLSelectElement).value;
+  locale.set(value);
+}
 
-  onMount(async () => {
-    // Tauri: platform detection через @tauri-apps/plugin-os
-    if ((window as any).__TAURI__) {
-      try {
-        const { platform } = await import('@tauri-apps/plugin-os');
-        isMacOS = (await platform()) === 'macos';
-      } catch {
-        isMacOS = false;
-      }
-    } else {
-      // Веб-браузер (фолбэк, почти никогда не нужен)
-      isMacOS = navigator.userAgent.includes('Mac');
-    }
-  });
+let isMacOS = false;
 
-
-
-
-
-  async function stopCloudflaredProcesses() {
+onMount(async () => {
+  // Tauri: platform detection через @tauri-apps/plugin-os
+  if ((window as any).__TAURI__) {
     try {
-      await invoke('stop_all_cloudflared_processes_frontend');
-      console.log("✅ Запрос на остановку cloudflared процессов отправлен.");
-    } catch (error) {
-      console.error("❌ Ошибка при отправке запроса на остановку cloudflared:", error);
+      const { platform } = await import('@tauri-apps/plugin-os');
+      isMacOS = (await platform()) === 'macos';
+    } catch {
+      isMacOS = false;
     }
+  } else {
+    // Веб-браузер (фолбэк, почти никогда не нужен)
+    isMacOS = navigator.userAgent.includes('Mac');
   }
+});
 
-  function handleDestroy() {
-    console.log("👋 Компонент уничтожен (приложение закрывается)");
-    stopCloudflaredProcesses();
+async function stopCloudflaredProcesses() {
+  try {
+    await invoke('stop_all_cloudflared_processes_frontend');
+    console.log("✅ Запрос на остановку cloudflared процессов отправлен.");
+  } catch (error) {
+    console.error("❌ Ошибка при отправке запроса на остановку cloudflared:", error);
   }
+}
 
-  onMount(async () => {
+function handleDestroy() {
+  console.log("👋 Компонент уничтожен (приложение закрывается)");
+  stopCloudflaredProcesses();
+}
+
+onMount(async () => {
   await checkUpdates(); // запуск проверки обновлений
 
   await fetchMainInfo();
@@ -79,38 +78,37 @@ async function checkUpdates() {
   }
 }
 
-  const activeTabStore = writable('security'); // ВАЖНО: название store
-  $: activeTab = $activeTabStore; // реактивное значение
+const activeTabStore = writable('security'); // ВАЖНО: название store
+$: activeTab = $activeTabStore; // реактивное значение
 
-  function setTab(tab: string) {
-    activeTabStore.set(tab);
-  }
+function setTab(tab: string) {
+  activeTabStore.set(tab);
+}
 
+let showModal = false;
+let username: string = "";
+let password: string = "";
+let additional_data: string = "";
+let remember = false;
+let useSSHKey = false;
 
-  let showModal = false;
-  let username: string = "";
-  let password: string = "";
-  let additional_data: string = "";
-  let remember = false;
-  let useSSHKey = false;
+let isEnabled = false;
+let companyInfo: ServerResponse[] = [];
+let filteredCompanyInfo: ServerResponse[] = [];
+let serverInfo: ServerInfo[] = [];
+let mainInfo: MainInfo | null = null;
+let expandedCompanyIds: string[] = [];
+let searchQuery = '';
+let supportMessage = '';
+let currentServer: Service | null = null;
+let currentCompanyId: string = "";
 
-  let isEnabled = false;
-  let companyInfo: ServerResponse[] = [];
-  let filteredCompanyInfo: ServerResponse[] = [];
-  let serverInfo: ServerInfo[] = [];
-  let mainInfo: MainInfo | null = null;
-  let expandedCompanyIds: string[] = [];
-  let searchQuery = '';
-  let supportMessage = '';
-  let currentServer: Service | null = null;
-  let currentCompanyId: string = "";
+let isRefreshing = false; // Для анимации обновления списка компаний
 
-  let isRefreshing = false; // Для анимации обновления списка компаний
-
-  function handleSwitchChange(value: boolean) {
-    isEnabled = value;
-    console.log('Switch is now', isEnabled ? 'on' : 'off');
-  }
+function handleSwitchChange(value: boolean) {
+  isEnabled = value;
+  console.log('Switch is now', isEnabled ? 'on' : 'off');
+}
 
 async function fetchMainInfo(showToast = false) {
   try {
@@ -134,10 +132,6 @@ async function fetchMainInfo(showToast = false) {
     isRefreshing = false;
   }
 }
-
-
-
-  
 
 async function connectRdpImmediately() {
   const service = $serverdata.service;
@@ -179,9 +173,6 @@ async function connectRdpImmediately() {
   }
 }
 
-
-
-
 function singInSsh() {
   console.log('SSH вход с', username, password, additional_data, useSSHKey);
   showModal = false;
@@ -192,15 +183,14 @@ async function selectFile() {
   // Тут в реальной интеграции будет tauri-plugin-dialog
 }
 
+function getServiceInfo(serviceId: string): ServiceStatus {
+  return mainInfo?.service_status[serviceId];
+}
 
-  function getServiceInfo(serviceId: string): ServiceStatus {
-    return mainInfo?.service_status[serviceId];
-  }
-
-  function getServiceStatusById(serviceId: string): boolean {
-    const status = mainInfo?.service_status[serviceId];
-    return status?.is_connected ?? false;
-  }
+function getServiceStatusById(serviceId: string): boolean {
+  const status = mainInfo?.service_status[serviceId];
+  return status?.is_connected ?? false;
+}
 
 function toggleCompany(companyId: string) {
   if (expandedCompanyIds.includes(companyId)) {
@@ -211,7 +201,6 @@ function toggleCompany(companyId: string) {
     localStorage.setItem('expandedCompanyId', companyId);
   }
 }
-
 
 async function handleConnectClick(server: Service, companyId: string) {
   const serviceState = getServiceInfo(server.id);
@@ -243,15 +232,14 @@ async function handleConnectClick(server: Service, companyId: string) {
   showModal = true;
 }
 
-
-  async function toggleConnection(tunnelid: string, protocol: string, isstarted: boolean) {
-    if (protocol === 'rdp') {
-      await invoke('set_connect_rdp', { tunnelid, isstarted });
-    } else if (protocol === 'ssh') {
-      await invoke('set_connect_ssh', { tunnelid, isstarted });
-    }
-    await fetchMainInfo();
+async function toggleConnection(tunnelid: string, protocol: string, isstarted: boolean) {
+  if (protocol === 'rdp') {
+    await invoke('set_connect_rdp', { tunnelid, isstarted });
+  } else if (protocol === 'ssh') {
+    await invoke('set_connect_ssh', { tunnelid, isstarted });
   }
+  await fetchMainInfo();
+}
 
 async function handleCheckboxChange(event: Event, server: Service, companyid: string) {
   const checkbox = event.target as HTMLInputElement;
@@ -272,8 +260,6 @@ async function handleCheckboxChange(event: Event, server: Service, companyid: st
     toast($t('tunnel_not_active')); // Показываем уведомление: туннель не активен
   }
 }
-
-
 
 async function cancelConnection() {
   if (currentServer) {
@@ -318,21 +304,18 @@ async function signOut(event: Event) {
 
 }
 
+function filteredCompanies() {
+  if (!searchQuery) return companyInfo;
+  return companyInfo.filter(company => {
+    const companyMatch = company.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const serverMatch = company.servers.some(server =>
+      server.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    return companyMatch || serverMatch;
+  });
+}
 
-
-
-  function filteredCompanies() {
-    if (!searchQuery) return companyInfo;
-    return companyInfo.filter(company => {
-      const companyMatch = company.name.toLowerCase().includes(searchQuery.toLowerCase());
-      const serverMatch = company.servers.some(server =>
-        server.name.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-      return companyMatch || serverMatch;
-    });
-  }
-
-  $: filteredCompanyInfo = filteredCompanies();
+$: filteredCompanyInfo = filteredCompanies();
 
 let activityStats = {
   today: 3,
@@ -373,6 +356,26 @@ let activeSessions = [
   { server: 'Server1', protocol: 'RDP', active: true },
   { server: 'Server2', protocol: 'SSH', active: false }
 ];
+
+let showPushModal = false;
+let pushTitle = '';
+let pushBody = '';
+let pushUrl = '';
+
+onMount(() => {
+  listen('push-notification', (event) => {
+    let push;
+    try {
+      push = typeof event.payload === 'string' ? JSON.parse(event.payload) : event.payload;
+    } catch (e) {
+      push = { title: 'Push', body: String(event.payload) };
+    }
+    pushTitle = push.title || 'Уведомление';
+    pushBody = push.body || '';
+    pushUrl = push.url || '';
+    showPushModal = true;
+  });
+});
 
 </script>
 
@@ -529,31 +532,41 @@ let activeSessions = [
       <!-- Контент в зависимости от выбранной вкладки -->
       <div class="mt-6">
         {#if $activeTabStore === 'security'}
-          <!-- From Uiverse.io by Praashoo7 --> 
-<div class="card">
-  <img
-    src="https://uiverse.io/astronaut.png"
-    alt=""
-    class="image"
-  />
-<div class="text-white font-semibold">
-  {$t('security_greeting')}, {$user?.name ?? 'Гость'}{$t('security_greeting_suffix')}
-</div>
+          <div class="security-flex-row" style="align-items: flex-start; position: relative;">
+            <div class="card">
+              <img
+                src="https://uiverse.io/astronaut.png"
+                alt=""
+                class="image"
+              />
+              <!--
+              <div class="text-white font-semibold">
+                {$t('security_greeting')}, {$user?.name ?? 'Гость'}{$t('security_greeting_suffix')}
+              </div>
+              -->
+              <div class="icons">
+                <a class="instagram"></a>
+                <a class="x"></a>
+                <a class="discord"></a>
+              </div>
+            </div>
 
-
-
-
-  <div class="icons">
-    <a class="instagram">
-
-    </a>
-    <a class="x">
-    </a>
-    <a class="discord">
-    </a>
-  </div>
-</div>
-
+            <div class="blog-ticker-container"
+                 style="position:absolute; top:0; right:0; height:100%; width:370px; display:flex; flex-direction:column; padding:24px 0; z-index:2; overflow:visible; max-height:540px; overflow:hidden;">
+              <span class="blog-ticker-gradient-top" style="content:''; position:absolute; left:0; right:0; top:0; height:28px; z-index:2; pointer-events:none;"></span>
+              <AdvancedNewsTicker 
+                vertical={true}
+                speed={32}
+                backgroundColor="transparent"
+                textColor="#e0e0e0"
+                fontSize="13px"
+                fontWeight="500"
+                autoUpdate={true}
+                updateInterval={45000}
+              />
+              <span class="blog-ticker-gradient-bottom" style="content:''; position:absolute; left:0; right:0; bottom:0; height:28px; z-index:2; pointer-events:none;"></span>
+            </div>
+          </div>
         {:else if $activeTabStore === 'activity'}
           <div class="activity-container">
     <!-- Статистика -->
@@ -859,6 +872,10 @@ let activeSessions = [
     </div> 
   </div>
 
+{/if}
+
+{#if showPushModal}
+  <PushModal title={pushTitle} body={pushBody} url={pushUrl} onClose={() => showPushModal = false} />
 {/if}
 
 {:else}
@@ -2108,5 +2125,29 @@ td {
   100% {
     transform: rotate(360deg);
   }
+}
+
+/* Стили для секции новостей безопасности */
+.security-news-section {
+  margin-top: 20px;
+  margin-bottom: 20px;
+}
+
+.security-news-title {
+  color: #e0e0e0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.security-news-title::before {
+  content: '';
+  width: 4px;
+  height: 20px;
+  background: linear-gradient(135deg, #4b9eff, #6bb6ff);
+  border-radius: 2px;
 }
 </style>
