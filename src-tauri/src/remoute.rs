@@ -10,9 +10,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
 use os_info;
 
-const USER_AGENT: &str = "2GC-CloudBridge/1.4.3";
+const USER_AGENT: &str = "2GC-CloudBridge/1.4.6";
 const KEYRING_SERVICE: &str = "2gc-cloudbridge";
 const KEYRING_USER: &str = "refresh_token";
+const KEYRING_USER_NAME: &str = "user_name";
 
 // src-tauri/src/remoute.rs
 
@@ -228,6 +229,29 @@ fn delete_refresh_token_from_keyring() {
     if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER) {
         let _ = entry.delete_password();
     }
+    delete_user_name_from_keyring();
+}
+
+fn get_user_name_from_keyring() -> Option<String> {
+    match keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_NAME) {
+        Ok(entry) => match entry.get_password() {
+            Ok(name) => Some(name),
+            Err(_) => None,
+        },
+        Err(_) => None,
+    }
+}
+
+fn set_user_name_to_keyring(name: &str) {
+    if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_NAME) {
+        let _ = entry.set_password(name);
+    }
+}
+
+fn delete_user_name_from_keyring() {
+    if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_NAME) {
+        let _ = entry.delete_password();
+    }
 }
 
 // -------------------------------------
@@ -275,7 +299,10 @@ impl User {
                 set_refresh_token_to_keyring(&refresh_token);
 
                 let exp_time = User::validate_token(&access_token).unwrap();
-                let user_name = response_tokens["name"].as_str().unwrap_or("Unknown").to_string();
+                let user_name = response_tokens["name"].as_str().map(|s| s.to_string())
+                    .or_else(get_user_name_from_keyring)
+                    .unwrap_or("Unknown".to_string());
+                set_user_name_to_keyring(&user_name);
 
                 Ok(User {
                     access_token,
@@ -333,6 +360,7 @@ impl User {
             .to_string();
 
         let user_name = response_tokens["name"].as_str().unwrap_or("Unknown").to_string();
+        set_user_name_to_keyring(&user_name);
 
         let exp_time = User::validate_token(&access_token).unwrap();
 
@@ -439,6 +467,7 @@ pub async fn create_user(new_user: User) {
 pub async fn delete_user() {
     let mut user = USER.lock().await;
     *user = None;
+    delete_user_name_from_keyring();
 }
 
 pub async fn get_server_by_tunnel_id(tunnel_id: &str) -> Option<Service> {
