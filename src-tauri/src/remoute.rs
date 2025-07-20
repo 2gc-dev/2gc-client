@@ -14,6 +14,7 @@ const USER_AGENT: &str = "2GC-CloudBridge/1.4.7";
 const KEYRING_SERVICE: &str = "2gc-cloudbridge";
 const KEYRING_USER: &str = "refresh_token";
 const KEYRING_USER_NAME: &str = "user_name";
+const DJANGO_API_BASE: &str = "https://127.0.0.1:5443";
 
 // src-tauri/src/remoute.rs
 
@@ -259,47 +260,39 @@ fn delete_user_name_from_keyring() {
 impl User {
     pub async fn try_remember() -> Result<User, Box<dyn Error + Send + Sync>> {
         let refresh_token = get_refresh_token_from_keyring();
-
         match refresh_token {
             Some(token) => {
-                let url = "https://lk.2gc.ru/api/token/refresh/";
+                let url = format!("{}/api/refresh/", DJANGO_API_BASE);
                 let login_refresh = serde_json::json!({
-                    "refresh": token,
+                    "refresh_token": token,
                 });
-
-                let client = Client::new();
-                let client_info = get_client_info();
+                let client = Client::builder().danger_accept_invalid_certs(true).build().unwrap();
+                println!("[DEBUG][try_remember] URL: {}", url);
+                println!("[DEBUG][try_remember] Body: {}", login_refresh);
                 let response = client
-                    .post(url)
-                    .header("User-Agent", USER_AGENT)
-                    .header("X-Client-Type", "desktop")
-                    .header("X-Client-Version", &client_info.version)
-                    .header("X-Client-OS", &client_info.os)
-                    .header("X-Client-Arch", &client_info.arch)
+                    .post(&url)
                     .json(&login_refresh)
                     .send()
                     .await?;
-                let response_status = response.status();
-                let response_tokens: Value = response.json().await?;
-
-                let access_token = response_tokens["access"]
+                let status = response.status();
+                let text = response.text().await?;
+                println!("[DEBUG][try_remember] Status: {}", status);
+                println!("[DEBUG][try_remember] Response: {}", text);
+                let response_tokens: Value = serde_json::from_str(&text)?;
+                let access_token = response_tokens["access_token"]
                     .as_str()
                     .ok_or("Missing access token")?
                     .to_string();
-                let refresh_token = response_tokens["refresh"]
+                let refresh_token = response_tokens["refresh_token"]
                     .as_str()
                     .ok_or("Missing refresh token")?
                     .to_string();
-
-                // Обновляем token в keyring
                 set_refresh_token_to_keyring(&refresh_token);
-
                 let exp_time = User::validate_token(&access_token).unwrap();
-                let user_name = response_tokens["name"].as_str().map(|s| s.to_string())
+                let user_name = response_tokens["user"].get("name").and_then(|v| v.as_str()).map(|s| s.to_string())
                     .or_else(get_user_name_from_keyring)
                     .unwrap_or("Unknown".to_string());
                 set_user_name_to_keyring(&user_name);
-
                 Ok(User {
                     access_token,
                     refresh_token,
@@ -322,49 +315,41 @@ impl User {
         password: String,
         is_save: bool,
     ) -> Result<User, Box<dyn Error + Send + Sync>> {
-        let url = "https://lk.2gc.ru/api/login/";
+        let url = format!("{}/api/login/", DJANGO_API_BASE);
         let login_data = serde_json::json!({
             "email": email,
             "password": password
         });
-
-        let client = Client::new();
-        let client_info = get_client_info();
+        let client = Client::builder().danger_accept_invalid_certs(true).build().unwrap();
+        println!("[DEBUG][login] URL: {}", url);
+        println!("[DEBUG][login] Body: {}", login_data);
         let response = client
-            .post(url)
-            .header("User-Agent", USER_AGENT)
-            .header("X-Client-Type", "desktop")
-            .header("X-Client-Version", &client_info.version)
-            .header("X-Client-OS", &client_info.os)
-            .header("X-Client-Arch", &client_info.arch)
+            .post(&url)
             .json(&login_data)
             .send()
             .await?;
-        let response_status = response.status();
-        let response_tokens: Value = response.json().await?;
-
-        if response_status.is_success() {
-            let access_token = response_tokens["access"]
+        let status = response.status();
+        let text = response.text().await?;
+        println!("[DEBUG][login] Status: {}", status);
+        println!("[DEBUG][login] Response: {}", text);
+        let response_tokens: Value = serde_json::from_str(&text)?;
+        if status.is_success() {
+            let access_token = response_tokens["access_token"]
                 .as_str()
                 .ok_or("Missing access token")?
                 .to_string();
-
-            let refresh_token = response_tokens["refresh"]
+            let refresh_token = response_tokens["refresh_token"]
                 .as_str()
                 .ok_or("Missing refresh token")?
                 .to_string();
-
-            let user_name = response_tokens["name"].as_str().unwrap_or("Unknown").to_string();
+            let user_name = response_tokens["user"].get("name").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
             set_user_name_to_keyring(&user_name);
-
             let exp_time = User::validate_token(&access_token).unwrap();
-
             if is_save {
                 set_refresh_token_to_keyring(&refresh_token);
             } else {
                 delete_refresh_token_from_keyring();
             }
-
             Ok(User {
                 refresh_token,
                 access_token,
@@ -377,41 +362,38 @@ impl User {
         } else {
             Err(Box::new(std::io::Error::new(
                 std::io::ErrorKind::Other,
-                "Login failed",
+                format!("Login failed: {}", text),
             )))
         }
     }
 
     async fn update_token(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        let url = "https://lk.2gc.ru/api/token/refresh/";
-        let login_refresh = serde_json::json!({
-            "refresh": self.refresh_token.clone(),
+        let url = format!("{}/api/refresh/", DJANGO_API_BASE);
+        let refresh_data = serde_json::json!({
+            "refresh_token": self.refresh_token.clone(),
         });
-        let client = Client::new();
-        let client_info = get_client_info();
+        let client = Client::builder().danger_accept_invalid_certs(true).build().unwrap();
+        println!("[DEBUG][refresh] URL: {}", url);
+        println!("[DEBUG][refresh] Body: {}", refresh_data);
         let response = client
-            .post(url)
-            .header("User-Agent", USER_AGENT)
-            .header("X-Client-Type", "desktop")
-            .header("X-Client-Version", &client_info.version)
-            .header("X-Client-OS", &client_info.os)
-            .header("X-Client-Arch", &client_info.arch)
-            .json(&login_refresh)
+            .post(&url)
+            .json(&refresh_data)
             .send()
             .await?;
-        let response_tokens: serde_json::Value = response.json().await?;
-        let access_token = response_tokens["access"].as_str().unwrap().to_string();
-        let refresh_token = response_tokens["refresh"].as_str().unwrap().to_string();
-
+        let status = response.status();
+        let text = response.text().await?;
+        println!("[DEBUG][refresh] Status: {}", status);
+        println!("[DEBUG][refresh] Response: {}", text);
+        let response_tokens: serde_json::Value = serde_json::from_str(&text)?;
+        let access_token = response_tokens["access_token"].as_str().ok_or("Missing access token")?.to_string();
+        let refresh_token = response_tokens["refresh_token"].as_str().ok_or("Missing refresh token")?.to_string();
         if self.is_save {
             set_refresh_token_to_keyring(&refresh_token);
         }
-
         let exp_time = User::validate_token(&access_token).unwrap();
         self.access_token = access_token;
         self.refresh_token = refresh_token;
         self.exp = exp_time;
-
         Ok(())
     }
 
@@ -429,17 +411,20 @@ impl User {
         if self.exp < now || self.exp - now <= 60 {
             self.update_token().await?;
         }
-
-        let url = "https://lk.2gc.ru/api/user/services/";
-        let client = Client::new();
+        let url = format!("{}/api/user/services/", DJANGO_API_BASE);
+        let client = Client::builder().danger_accept_invalid_certs(true).build().unwrap();
+        println!("[DEBUG][get_all_servers] URL: {}", url);
         let response = client
-            .get(url)
-            .header("Authorization", format!("Bearer {}", self.access_token))
+            .get(&url)
+            .bearer_auth(&self.access_token)
             .header("User-Agent", USER_AGENT)
             .send()
             .await?;
-        let response_body: Vec<ServerResponse> = response.json().await?;
-
+        let status = response.status();
+        let text = response.text().await?;
+        println!("[DEBUG][get_all_servers] Status: {}", status);
+        println!("[DEBUG][get_all_servers] Response: {}", text);
+        let response_body: Vec<ServerResponse> = serde_json::from_str(&text)?;
         for company in &response_body {
             for server in &company.servers {
                 for service in &server.services {
@@ -447,9 +432,7 @@ impl User {
                 }
             }
         }
-
         self.companys = response_body.clone();
-
         Ok(())
     }
 }
